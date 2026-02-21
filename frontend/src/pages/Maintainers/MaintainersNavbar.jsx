@@ -1,0 +1,26 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const MaintainersNavbar = () => {
+  const navigate = useNavigate();
+  const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+
+  const handleLogout = () => {
+    localStorage.removeItem('userInfo');
+    navigate('/login');
+  };
+
+  return (
+    <nav className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
+      <h1 className="text-xl font-bold text-gray-800">Maintenance Portal</h1>
+      <div className="flex items-center space-x-4">
+        <span className="text-sm font-medium text-gray-600">{userInfo?.name || 'Maintainer'}</span>
+        <button onClick={handleLogout} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700">
+          Logout
+        </button>
+      </div>
+    </nav>
+  );
+};
+
+export default MaintainersNavbar;
