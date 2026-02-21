@@ -8,8 +8,9 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 
 // Import Routes
-const studentRoutes = require('./routes/studentRoute');
-const adminRoutes = require('./routes/adminRoute');
+
+const authRoutes = require('./routes/authRoute'); // Added Auth Route Import
+
 // Load environment variables from .env
 dotenv.config();
 
@@ -35,9 +36,9 @@ const connectDB = async () => {
 connectDB();
 
 // 3. API Routes 
-// This tells Express to send any requests starting with /api/students to your student routes file
-app.use('/api/students', studentRoutes);
-app.use('/api/admins', adminRoutes);
+// This tells Express to send any requests starting with these paths to the correct route files
+
+app.use('/api/auth', authRoutes); // Added Auth Route Middleware
 
 // Basic Health Check Route
 app.get('/', (req, res) => {

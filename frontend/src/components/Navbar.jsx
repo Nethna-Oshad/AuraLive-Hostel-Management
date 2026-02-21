@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 
 const Navbar = () => {
   const navigate = useNavigate();
-  // Check if student is logged in by looking for token
-  const studentInfo = JSON.parse(localStorage.getItem('studentInfo'));
+  // FIXED: Changed 'studentInfo' to 'userInfo'
+  const userInfo = JSON.parse(localStorage.getItem('userInfo'));
 
   const handleLogout = () => {
-    localStorage.removeItem('studentInfo');
+    // FIXED: Changed 'studentInfo' to 'userInfo'
+    localStorage.removeItem('userInfo');
     navigate('/login');
   };
 
@@ -15,21 +16,19 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 w-full bg-white/80 border-b border-gray-100 backdrop-blur-md">
       <div className="container flex items-center justify-between px-6 py-4 mx-auto">
         
-        {/* Logo - Highlighted with a primary color */}
         <Link to="/" className="text-2xl font-extrabold tracking-tight text-gray-900">
           Aura<span className="text-indigo-600">Live</span>
         </Link>
         
-        {/* Navigation Links & Auth Buttons */}
         <div className="flex items-center space-x-6 text-sm font-medium">
           <Link to="/home" className="text-gray-500 transition-colors duration-200 hover:text-indigo-600">
             Home
           </Link>
           
-          {studentInfo ? (
+          {userInfo ? (
             <div className="flex items-center space-x-4">
               <span className="text-gray-600">
-                Hi, <span className="font-semibold text-gray-900">{studentInfo.name}</span>
+                Hi, <span className="font-semibold text-gray-900">{userInfo.name}</span>
               </span>
               <button 
                 onClick={handleLogout} 

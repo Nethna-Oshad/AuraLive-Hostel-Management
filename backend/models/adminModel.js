@@ -6,7 +6,7 @@ const adminSchema = mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, default: 'Admin' }, // Useful if you add SuperAdmins later
+    role: { type: String, default: 'Admin' }, // Default Admin role
   },
   { timestamps: true }
 );
