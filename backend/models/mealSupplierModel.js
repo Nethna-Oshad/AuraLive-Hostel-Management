@@ -7,6 +7,7 @@ const mealSupplierSchema = mongoose.Schema({
   phone: { type: String, required: true },
   password: { type: String, required: true },
   role: { type: String, default: 'MealSupplier' },
+  status: { type: String, default: 'Inactive' }, // Added Status
 }, { timestamps: true });
 
 mealSupplierSchema.pre('save', async function (next) {
@@ -14,9 +15,5 @@ mealSupplierSchema.pre('save', async function (next) {
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
-
-mealSupplierSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
-
+mealSupplierSchema.methods.matchPassword = async function (enteredPassword) { return await bcrypt.compare(enteredPassword, this.password); };
 module.exports = mongoose.model('MealSupplier', mealSupplierSchema);
