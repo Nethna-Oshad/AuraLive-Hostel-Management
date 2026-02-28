@@ -10,6 +10,7 @@ const mongoose = require('mongoose');
 // Import Routes
 
 const authRoutes = require('./routes/authRoute'); // Added Auth Route Import
+const roomRoutes = require('./routes/roomRoute');
 
 // Load environment variables from .env
 dotenv.config();
@@ -39,7 +40,7 @@ connectDB();
 // This tells Express to send any requests starting with these paths to the correct route files
 
 app.use('/api/auth', authRoutes); // Added Auth Route Middleware
-
+app.use('/api/rooms', roomRoutes);
 // Basic Health Check Route
 app.get('/', (req, res) => {
   res.send('AuraLive Backend API is running...');

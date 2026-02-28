@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 
 // Admin Component Imports
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import ManageRooms from './pages/Admin/ManageRooms';
 import ManageStudents from './pages/Admin/ManageStudents';
 import ManageLaundry from './pages/Admin/ManageLaundry';
 import ManageMeals from './pages/Admin/ManageMeals';
@@ -50,6 +51,7 @@ function App() {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
+        <Route path="/admin/rooms" element={<ManageRooms />} />
         <Route path="/meal/dashboard" element={<MealDashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/students" element={<ManageStudents />} />
