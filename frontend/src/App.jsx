@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast'; // <-- Imported the Toast Notifications
 
 // Component Imports
 import Home from './pages/Student/Home';
@@ -10,11 +11,13 @@ import Footer from './components/Footer';
 
 // Admin Component Imports
 import AdminDashboard from './pages/Admin/AdminDashboard';
-import ManageRooms from './pages/Admin/ManageRooms';
 import ManageStudents from './pages/Admin/ManageStudents';
 import ManageLaundry from './pages/Admin/ManageLaundry';
 import ManageMeals from './pages/Admin/ManageMeals';
 import ManageMaintainers from './pages/Admin/ManageMaintainers';
+
+// Room Management Component Import
+import ManageRooms from './pages/Room/ManageRooms';
 
 // Partner Registration Component Imports
 import LaundryRegistration from './pages/Laundry/LaundryRegistation';
@@ -43,21 +46,32 @@ const AuthLayout = ({ children }) => (
 function App() {
   return (
     <Router>
+      {/* Global Toast Notifications initialized here */}
+      <Toaster 
+        position="top-center" 
+        reverseOrder={false} 
+        toastOptions={{ 
+          duration: 3000,
+          style: { fontFamily: 'Inter, sans-serif', fontWeight: '500' }
+        }} 
+      />
+
       <Routes>
-        {/* === Auth Route (With Navbar/Footer) === */}
+        {/* === Auth Route === */}
         <Route path="/login" element={<StudentLayout><Login /></StudentLayout>} />
 
-        {/* === Dashboard Routes (Standalone Layout inside component) === */}
+        {/* === Admin Dashboard Routes === */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
-        <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
         <Route path="/admin/rooms" element={<ManageRooms />} />
-        <Route path="/meal/dashboard" element={<MealDashboard />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/students" element={<ManageStudents />} />
         <Route path="/admin/laundry" element={<ManageLaundry />} />
         <Route path="/admin/meals" element={<ManageMeals />} />
         <Route path="/admin/maintainers" element={<ManageMaintainers />} />
+
+        {/* === Partner Dashboard Routes === */}
+        <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
+        <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
+        <Route path="/meal/dashboard" element={<MealDashboard />} />
 
         {/* === Student Routes (Using StudentLayout) === */}
         <Route path="/" element={<StudentLayout><Home /></StudentLayout>} />
