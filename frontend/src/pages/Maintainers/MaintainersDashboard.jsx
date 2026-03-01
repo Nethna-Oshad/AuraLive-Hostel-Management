@@ -20,7 +20,7 @@ const MaintainersDashboard = () => {
               <p className="mt-2 text-3xl font-bold text-yellow-500">0</p>
             </div>
             <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-xl">
-              <h3 className="text-sm font-medium text-gray-500">Resolved Today</h3>
+              <h3 className="text-sm font-medium text-gray-500">Resolved nnn Today</h3>
               <p className="mt-2 text-3xl font-bold text-gray-800">0</p>
             </div>
           </div>
