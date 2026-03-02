@@ -9,7 +9,9 @@ const mongoose = require('mongoose');
 
 // Import Routes
 
-const authRoutes = require('./routes/authRoute'); // Added Auth Route Import
+const authRoutes = require('./routes/authRoute'); 
+const roomRoutes = require('./routes/roomRoute');
+const bookingRoutes = require('./routes/bookingRoute'); 
 
 // Load environment variables from .env
 dotenv.config();
@@ -39,6 +41,8 @@ connectDB();
 // This tells Express to send any requests starting with these paths to the correct route files
 
 app.use('/api/auth', authRoutes); // Added Auth Route Middleware
+app.use('/api/rooms', roomRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Basic Health Check Route
 app.get('/', (req, res) => {

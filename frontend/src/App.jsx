@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast'; // <-- Imported the Toast Notifications
 
 // Component Imports
 import Home from './pages/Student/Home';
@@ -15,6 +16,11 @@ import ManageLaundry from './pages/Admin/ManageLaundry';
 import ManageMeals from './pages/Admin/ManageMeals';
 import ManageMaintainers from './pages/Admin/ManageMaintainers';
 
+// Room Management Component Import
+import ManageRooms from './pages/Room/ManageRooms';
+import RoomDetails from './pages/Room/RoomDetails'; 
+import BookingProcess from './pages/Room/BookingProcess'; 
+
 // Partner Registration Component Imports
 import LaundryRegistration from './pages/Laundry/LaundryRegistation';
 import MealSupplierRegistration from './pages/Meal/MealSupplierRegistation';
@@ -24,6 +30,9 @@ import MaintainersRegistration from './pages/Maintainers/MaintainersRegistation'
 import LaundryDashboard from './pages/Laundry/LaundryDashboard';
 import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
 import MealDashboard from './pages/Meal/MealDashboard';
+
+// Student Profile Component Import
+import Profile from './pages/Student/Profile';
 
 // Layout wrapper for Student/Public pages
 const StudentLayout = ({ children }) => (
@@ -42,20 +51,36 @@ const AuthLayout = ({ children }) => (
 function App() {
   return (
     <Router>
+      {/* Global Toast Notifications initialized here */}
+      <Toaster 
+        position="top-center" 
+        reverseOrder={false} 
+        toastOptions={{ 
+          duration: 3000,
+          style: { fontFamily: 'Inter, sans-serif', fontWeight: '500' }
+        }} 
+      />
+
       <Routes>
-        {/* === Auth Route (With Navbar/Footer) === */}
+        {/* === Auth Route === */}
         <Route path="/login" element={<StudentLayout><Login /></StudentLayout>} />
 
-        {/* === Dashboard Routes (Standalone Layout inside component) === */}
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
-        <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
-        <Route path="/meal/dashboard" element={<MealDashboard />} />
+        {/* === Admin Dashboard Routes === */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/students" element={<ManageStudents />} />
         <Route path="/admin/laundry" element={<ManageLaundry />} />
         <Route path="/admin/meals" element={<ManageMeals />} />
         <Route path="/admin/maintainers" element={<ManageMaintainers />} />
+
+        {/* === Room Management Route === */}
+        <Route path="/admin/rooms" element={<ManageRooms />} />
+        <Route path="/book/:id" element={<StudentLayout><RoomDetails /></StudentLayout>} />
+        <Route path="/booking/:id" element={<StudentLayout><BookingProcess /></StudentLayout>} />
+
+        {/* === Partner Dashboard Routes === */}
+        <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
+        <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
+        <Route path="/meal/dashboard" element={<MealDashboard />} />
 
         {/* === Student Routes (Using StudentLayout) === */}
         <Route path="/" element={<StudentLayout><Home /></StudentLayout>} />
@@ -66,6 +91,9 @@ function App() {
         <Route path="/register/laundry" element={<StudentLayout><LaundryRegistration /></StudentLayout>} />
         <Route path="/register/meal" element={<StudentLayout><MealSupplierRegistration /></StudentLayout>} />
         <Route path="/register/maintainer" element={<StudentLayout><MaintainersRegistration /></StudentLayout>} />
+
+        {/* === Student Profile Route === */}
+        <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
       </Routes>
     </Router>
   );
