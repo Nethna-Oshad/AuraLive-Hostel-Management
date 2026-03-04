@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast'; // <-- Imported the Toast Notifications
+import { Toaster } from 'react-hot-toast'; 
 
 // Component Imports
 import Home from './pages/Student/Home';
@@ -34,14 +34,29 @@ import MealDashboard from './pages/Meal/MealDashboard';
 // Student Profile Component Import
 import Profile from './pages/Student/Profile';
 
+// Chatbot Component Import
+import Chatbot from './components/Chatbot';
+
+// Payment Success Component Import
+import PaymentSuccess from './pages/Payment/PaymentSuccess';
+
 // Layout wrapper for Student/Public pages
-const StudentLayout = ({ children }) => (
-  <div className="flex flex-col min-h-screen">
-    <Navbar />
-    <main className="flex-grow bg-gray-50">{children}</main>
-    <Footer />
-  </div>
-);
+const StudentLayout = ({ children }) => {
+  // Check who is logged in
+  const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+  // Only show the chatbot if the user is a Student OR if no one is logged in yet (guest browsing)
+  const showChatbot = !userInfo || userInfo.role === 'Student';
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Navbar />
+      <main className="flex-grow bg-gray-50">{children}</main>
+      <Footer />
+      {/* Chatbot is now cleanly scoped only to the student layout! */}
+      {showChatbot && <Chatbot />} 
+    </div>
+  );
+};
 
 // Layout wrapper for pages without Navbar/Footer (like Login)
 const AuthLayout = ({ children }) => (
@@ -60,7 +75,7 @@ function App() {
           style: { fontFamily: 'Inter, sans-serif', fontWeight: '500' }
         }} 
       />
-
+      
       <Routes>
         {/* === Auth Route === */}
         <Route path="/login" element={<StudentLayout><Login /></StudentLayout>} />
@@ -94,6 +109,9 @@ function App() {
 
         {/* === Student Profile Route === */}
         <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
+
+        {/* === Payment Success Route === */}
+        <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
       </Routes>
     </Router>
   );

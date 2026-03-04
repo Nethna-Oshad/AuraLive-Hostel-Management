@@ -18,7 +18,12 @@ const bookingSchema = mongoose.Schema({
   specialRequests: { type: String, default: '' },
 
   // Admin Control Status
-  status: { type: String, default: 'Pending Approval' } 
+  status: { type: String, default: 'Pending Approval' },
+
+  // NEW: Stripe Payment Tracking
+  paymentStatus: { type: String, default: 'Unpaid' },
+  stripeSessionId: { type: String }
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);
