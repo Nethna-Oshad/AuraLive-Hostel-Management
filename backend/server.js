@@ -12,6 +12,8 @@ const mongoose = require('mongoose');
 const authRoutes = require('./routes/authRoute'); 
 const roomRoutes = require('./routes/roomRoute');
 const bookingRoutes = require('./routes/bookingRoute'); 
+const chatbotRoutes = require('./routes/chatbotRoute');
+const paymentRoutes = require('./routes/paymentRoute');
 
 // Load environment variables from .env
 dotenv.config();
@@ -43,6 +45,8 @@ connectDB();
 app.use('/api/auth', authRoutes); // Added Auth Route Middleware
 app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/chat', chatbotRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Basic Health Check Route
 app.get('/', (req, res) => {
