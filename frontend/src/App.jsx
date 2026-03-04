@@ -37,6 +37,9 @@ import Profile from './pages/Student/Profile';
 // Chatbot Component Import
 import Chatbot from './components/Chatbot';
 
+// Payment Success Component Import
+import PaymentSuccess from './pages/Payment/PaymentSuccess';
+
 // Layout wrapper for Student/Public pages
 const StudentLayout = ({ children }) => {
   // Check who is logged in
@@ -106,6 +109,9 @@ function App() {
 
         {/* === Student Profile Route === */}
         <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
+
+        {/* === Payment Success Route === */}
+        <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
       </Routes>
     </Router>
   );
