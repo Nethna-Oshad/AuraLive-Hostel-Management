@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, Mail, Phone, ShieldCheck, Home as HomeIcon, 
-  FileText, Wrench, Edit3, Save, X, AlertCircle, Calendar
+  FileText, Wrench, Edit3, Save, X, AlertCircle, Calendar, CheckSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -70,6 +70,22 @@ const Profile = () => {
     }
   };
 
+  // NEW: Handle Stripe Payment Redirect
+  const handlePayment = async () => {
+    try {
+      toast.loading('Connecting to secure payment gateway...', { id: 'stripe-toast' });
+      const response = await axios.post('http://localhost:5000/api/payment/create-checkout-session', {
+        bookingId: bookingData._id
+      });
+      toast.dismiss('stripe-toast');
+      // Redirect the student to the secure Stripe page
+      window.location.href = response.data.url;
+    } catch (error) {
+      toast.dismiss('stripe-toast');
+      toast.error('Payment gateway error. Please try again.');
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex justify-center items-center bg-gray-50"><div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#2872A1]"></div></div>;
 
   return (
@@ -121,13 +137,10 @@ const Profile = () => {
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
               className="relative rounded-3xl overflow-hidden shadow-lg group cursor-pointer"
               onClick={() => {
-                // Future route for maintenance requests
                 toast('Maintenance Request portal coming soon!', { icon: '🔧' });
               }}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-[#1f5a80] to-[#153e5c] z-0 transition-transform duration-500 group-hover:scale-105"></div>
-              
-              {/* Decorative background elements */}
               <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors"></div>
               
               <div className="relative z-10 p-8 flex flex-col items-center text-center">
@@ -141,7 +154,6 @@ const Profile = () => {
                 </div>
               </div>
             </motion.div>
-
           </div>
 
           {/* RIGHT COLUMN: Booking & Extra Information */}
@@ -150,18 +162,30 @@ const Profile = () => {
               
               {bookingData ? (
                 <>
-                  <div className="flex justify-between items-center mb-8 pb-6 border-b border-gray-100">
+                  <div className="flex justify-between items-start mb-8 pb-6 border-b border-gray-100">
                     <div>
                       <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         <HomeIcon className="w-6 h-6 text-[#2872A1]" /> Room Details
                       </h3>
                       <p className="text-gray-500 text-sm mt-1">Your current hostel accommodation</p>
                     </div>
-                    <div className="text-right">
+                    
+                    {/* NEW: Payment Button & Status Area */}
+                    <div className="text-right flex flex-col items-end">
                       <span className="block text-3xl font-extrabold text-[#2872A1]">{bookingData.roomNumber}</span>
-                      <span className={`text-xs font-bold uppercase tracking-wider ${bookingData.status === 'Pending Approval' ? 'text-orange-500' : 'text-emerald-500'}`}>
+                      <span className={`text-xs font-bold uppercase tracking-wider mb-3 ${bookingData.status === 'Pending Approval' ? 'text-orange-500' : 'text-emerald-500'}`}>
                         {bookingData.status}
                       </span>
+                      
+                      {bookingData.paymentStatus === 'Unpaid' ? (
+                        <button onClick={handlePayment} className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2 animate-bounce hover:animate-none">
+                          <ShieldCheck className="w-4 h-4" /> Pay Deposit & Secure Room
+                        </button>
+                      ) : (
+                        <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm uppercase tracking-wider">
+                          <CheckSquare className="w-4 h-4" /> Payment Complete
+                        </span>
+                      )}
                     </div>
                   </div>
 
