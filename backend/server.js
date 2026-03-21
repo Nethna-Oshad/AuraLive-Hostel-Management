@@ -14,6 +14,7 @@ const roomRoutes = require('./routes/roomRoute');
 const bookingRoutes = require('./routes/bookingRoute'); 
 const chatbotRoutes = require('./routes/chatbotRoute');
 const paymentRoutes = require('./routes/paymentRoute');
+const invoiceRoutes = require('./routes/invoiceRoute');
 
 // Load environment variables from .env
 dotenv.config();
@@ -47,6 +48,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/chat', chatbotRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/invoices', invoiceRoutes);
 
 // Basic Health Check Route
 app.get('/', (req, res) => {
