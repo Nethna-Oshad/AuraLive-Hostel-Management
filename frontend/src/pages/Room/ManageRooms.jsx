@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '../Admin/AdminSidebar';
 import AdminNavbar from '../Admin/AdminNavbar';
+import toast from 'react-hot-toast'; // NEW: Imported for beautiful error messages
 
 const ManageRooms = () => {
   const [rooms, setRooms] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
   
-  // Form State
   const initialForm = {
     roomNumber: '', floorLevel: 'Ground', roomType: 'Single', designatedGender: 'Neutral',
     airConditioning: 'Non-AC', bathroomType: 'Common', furnishing: [], hasBalcony: false,
@@ -16,7 +16,6 @@ const ManageRooms = () => {
   const [formData, setFormData] = useState(initialForm);
   const [imageFile, setImageFile] = useState(null);
 
-  // Available Amenities
   const amenitiesList = ['Bed', 'Study Desk', 'Chair', 'Wardrobe', 'Ceiling Fan', 'Mini Fridge'];
 
   useEffect(() => { fetchRooms(); }, []);
@@ -31,7 +30,21 @@ const ManageRooms = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    let newValue = type === 'checkbox' ? checked : value;
+
+    // SMART FEATURE: Auto-adjust and lock max capacity based on Room Type
+    let updatedFormData = { ...formData, [name]: newValue };
+    
+    if (name === 'roomType') {
+      if (newValue === 'Single') updatedFormData.maxCapacity = '1';
+      if (newValue === 'Double') updatedFormData.maxCapacity = '2';
+      if (newValue === 'Triple') updatedFormData.maxCapacity = '3';
+      if (newValue === 'Shared Dorm' && Number(formData.maxCapacity) < 4) {
+        updatedFormData.maxCapacity = '4'; // Default to 4 if they switch to Shared Dorm
+      }
+    }
+
+    setFormData(updatedFormData);
   };
 
   const handleFurnishingChange = (item) => {
@@ -53,23 +66,43 @@ const ManageRooms = () => {
       hasBalcony: room.hasBalcony, monthlyRent: room.monthlyRent, keyMoney: room.keyMoney, maxCapacity: room.maxCapacity,
       description: room.description, status: room.status, display: room.display
     });
-    setImageFile(null); // Reset image input when editing
+    setImageFile(null); 
   };
 
   const deleteRoom = async (id) => {
     if(!window.confirm("Are you sure you want to delete this room?")) return;
-    await fetch(`http://localhost:5000/api/rooms/${id}`, { method: 'DELETE' });
-    fetchRooms();
+    try {
+      await fetch(`http://localhost:5000/api/rooms/${id}`, { method: 'DELETE' });
+      toast.success("Room deleted successfully!");
+      fetchRooms();
+    } catch (error) {
+      toast.error("Failed to delete room.");
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // ==========================================
+    // STRICT FORM VALIDATIONS BEFORE SUBMITTING
+    // ==========================================
+    const { roomNumber, monthlyRent, keyMoney, maxCapacity, roomType } = formData;
     
-    // Because we have an image file, we MUST use FormData instead of standard JSON
+    if (!roomNumber.trim()) return toast.error("Room Number cannot be empty.");
+    if (Number(monthlyRent) <= 0) return toast.error("Monthly Rent must be greater than Rs. 0");
+    if (Number(keyMoney) < 0) return toast.error("Key Money cannot be negative.");
+    
+    const capacity = Number(maxCapacity);
+    if (roomType === 'Single' && capacity !== 1) return toast.error("Single rooms must have exactly 1 capacity.");
+    if (roomType === 'Double' && capacity !== 2) return toast.error("Double rooms must have exactly 2 capacity.");
+    if (roomType === 'Triple' && capacity !== 3) return toast.error("Triple rooms must have exactly 3 capacity.");
+    if (roomType === 'Shared Dorm' && capacity < 4) return toast.error("Shared Dorms must have a capacity of 4 or more.");
+    // ==========================================
+
     const submitData = new FormData();
     Object.keys(formData).forEach(key => {
       if (key === 'furnishing') {
-        submitData.append(key, JSON.stringify(formData[key])); // Array must be stringified for FormData
+        submitData.append(key, JSON.stringify(formData[key])); 
       } else {
         submitData.append(key, formData[key]);
       }
@@ -82,18 +115,25 @@ const ManageRooms = () => {
     try {
       const res = await fetch(url, { method, body: submitData });
       if (res.ok) {
+        toast.success(isEditing ? 'Room updated successfully!' : 'New room created perfectly!');
         fetchRooms();
         setFormData(initialForm);
         setImageFile(null);
         setIsEditing(false);
         setEditId(null);
-        e.target.reset(); // Clear file input
+        e.target.reset(); 
       } else {
         const err = await res.json();
-        alert(err.message);
+        toast.error(err.message || "Failed to save room.");
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      toast.error("Server error. Please try again.");
+      console.error(err); 
+    }
   };
+
+  // Helper boolean to check if capacity should be locked
+  const isCapacityLocked = ['Single', 'Double', 'Triple'].includes(formData.roomType);
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -112,8 +152,6 @@ const ManageRooms = () => {
           </div>
 
           <div className="flex flex-col xl:flex-row gap-8">
-            
-            {/* LEFT COLUMN: ROOM LIST */}
             <div className="w-full xl:w-2/3 space-y-4">
               <div className="bg-white rounded-2xl shadow-sm border border-[#CBDDE9]/50 overflow-hidden">
                 <table className="w-full text-left border-collapse">
@@ -121,7 +159,7 @@ const ManageRooms = () => {
                     <tr className="bg-[#2872A1] text-[#CBDDE9] text-sm tracking-wide">
                       <th className="p-4 font-semibold">Room</th>
                       <th className="p-4 font-semibold">Type & Gender</th>
-                      <th className="p-4 font-semibold">Pricing</th>
+                      <th className="p-4 font-semibold">Occupancy</th>
                       <th className="p-4 font-semibold">Status</th>
                       <th className="p-4 font-semibold text-right">Actions</th>
                     </tr>
@@ -147,8 +185,12 @@ const ManageRooms = () => {
                           <p className="text-xs text-gray-500">{room.designatedGender}</p>
                         </td>
                         <td className="p-4">
-                          <p className="font-bold text-gray-800">Rs. {room.monthlyRent}<span className="text-xs font-normal text-gray-500">/mo</span></p>
-                          <p className="text-xs text-gray-500">Key: Rs. {room.keyMoney}</p>
+                          <div className="flex flex-col gap-1">
+                             <p className="font-bold text-gray-800">{room.currentOccupancy || 0} / {room.maxCapacity} Booked</p>
+                             <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                               <div className="h-1.5 bg-[#2872A1] rounded-full" style={{ width: `${((room.currentOccupancy || 0) / room.maxCapacity) * 100}%` }}></div>
+                             </div>
+                          </div>
                         </td>
                         <td className="p-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${room.status === 'Available' ? 'bg-green-100 text-green-700' : room.status === 'Full' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
@@ -170,7 +212,6 @@ const ManageRooms = () => {
               </div>
             </div>
 
-            {/* RIGHT COLUMN: ADD/EDIT FORM */}
             <div className="w-full xl:w-1/3">
               <div className="bg-white rounded-2xl shadow-xl shadow-[#CBDDE9]/30 border border-[#CBDDE9]/50 p-6 sticky top-6">
                 <h3 className="text-xl font-bold text-[#2872A1] mb-6 flex items-center gap-2">
@@ -179,7 +220,6 @@ const ManageRooms = () => {
                 
                 <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 custom-scrollbar">
                   
-                  {/* Basic Info */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-600 mb-1">Room Number *</label>
@@ -216,25 +256,38 @@ const ManageRooms = () => {
                     </div>
                   </div>
 
-                  {/* Pricing */}
                   <div className="p-4 bg-blue-50/50 rounded-xl border border-[#CBDDE9]/50 space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-[#2872A1] mb-1">Monthly Rent (Rs) *</label>
-                        <input type="number" name="monthlyRent" value={formData.monthlyRent} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm" placeholder="e.g. 25000" />
+                        <input type="number" name="monthlyRent" value={formData.monthlyRent} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm bg-white focus:ring-2 focus:ring-[#2872A1]" placeholder="e.g. 25000" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-[#2872A1] mb-1">Key Money (Rs) *</label>
-                        <input type="number" name="keyMoney" value={formData.keyMoney} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm" placeholder="e.g. 50000" />
+                        <input type="number" name="keyMoney" value={formData.keyMoney} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm bg-white focus:ring-2 focus:ring-[#2872A1]" placeholder="e.g. 50000" />
                       </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-[#2872A1] mb-1">Max Student Capacity *</label>
-                      <input type="number" name="maxCapacity" value={formData.maxCapacity} onChange={handleInputChange} required min="1" className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm" />
+                      {/* THIS BOX IS SMART: It locks if Single, Double, or Triple is chosen */}
+                      <input 
+                        type="number" 
+                        name="maxCapacity" 
+                        value={formData.maxCapacity} 
+                        onChange={handleInputChange} 
+                        required 
+                        min={isCapacityLocked ? formData.maxCapacity : "4"} 
+                        readOnly={isCapacityLocked}
+                        className={`w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm transition-colors ${
+                          isCapacityLocked ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white focus:ring-2 focus:ring-[#2872A1]'
+                        }`} 
+                      />
+                      {isCapacityLocked && (
+                        <p className="text-[10px] text-gray-500 mt-1 font-bold">Locked based on selected Room Type.</p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Amenities */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-600 mb-1">A/C Status</label>
@@ -269,7 +322,6 @@ const ManageRooms = () => {
                     <label htmlFor="hasBalcony" className="text-sm font-bold text-gray-700 cursor-pointer">Room has a Balcony / Great View</label>
                   </div>
 
-                  {/* Visuals & Status */}
                   <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Room Description</label>
                     <textarea name="description" value={formData.description} onChange={handleInputChange} rows="3" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none text-sm resize-none" placeholder="Quiet corner room, perfect for studying..."></textarea>
@@ -308,7 +360,6 @@ const ManageRooms = () => {
           </div>
         </main>
       </div>
-      {/* Small custom style for scrollbar inside the form */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

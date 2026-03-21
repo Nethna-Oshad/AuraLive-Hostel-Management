@@ -78,8 +78,17 @@ const verifyPayment = async (req, res) => {
     booking.status = 'Confirmed';
     await booking.save();
 
-    // 2. Mark the Room as Full
-    const room = await Room.findByIdAndUpdate(booking.roomId, { status: 'Full' });
+    // 2. Update occupancy & Check if full
+    const room = await Room.findById(booking.roomId);
+    if (room) {
+      room.currentOccupancy = (room.currentOccupancy || 0) + 1; // Add 1 student
+      
+      // Only mark as full if we hit the max capacity!
+      if (room.currentOccupancy >= room.maxCapacity) {
+        room.status = 'Full';
+      }
+      await room.save();
+    }
 
     // 3. GENERATE THE RECEIPT FOR THE ADMIN DASHBOARD
     const student = await Student.findOne({ email: booking.studentEmail });
