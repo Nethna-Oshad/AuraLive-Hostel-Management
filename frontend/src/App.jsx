@@ -30,15 +30,29 @@ import MaintainersRegistration from './pages/Maintainers/MaintainersRegistation'
 import LaundryDashboard from './pages/Laundry/LaundryDashboard';
 import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
 import MealDashboard from './pages/Meal/MealDashboard';
+import MealOrders from './pages/Meal/MealOrders';
+import MealMenuManagement from './pages/Meal/MealMenuManagement';
+import MealInsights from './pages/Meal/MealInsights';
 
 // Student Profile Component Import
 import Profile from './pages/Student/Profile';
+import StudentMealDashboard from './pages/Student/MealDashboard';
 
 // Chatbot Component Import
 import Chatbot from './components/Chatbot';
 
 // Payment Success Component Import
 import PaymentSuccess from './pages/Payment/PaymentSuccess';
+import MealPaymentSuccess from './pages/Payment/MealPaymentSuccess';
+import ManagePayments from './pages/Admin/ManagePayments';
+
+// Company Info Pages
+// Company Info Pages (Removed '/pages' from the path)
+import AboutUs from './Company/AboutUs';
+import PrivacyPolicy from './Company/PrivacyPolicy';
+import TermsOfService from './Company/TermsOfService';
+import HelpCenter from './Company/HelpCenter';
+
 
 // Layout wrapper for Student/Public pages
 const StudentLayout = ({ children }) => {
@@ -96,6 +110,9 @@ function App() {
         <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
         <Route path="/meal/dashboard" element={<MealDashboard />} />
+        <Route path="/meal/orders" element={<MealOrders />} />
+        <Route path="/meal/menu" element={<MealMenuManagement />} />
+        <Route path="/meal/insights" element={<MealInsights />} />
 
         {/* === Student Routes (Using StudentLayout) === */}
         <Route path="/" element={<StudentLayout><Home /></StudentLayout>} />
@@ -109,9 +126,19 @@ function App() {
 
         {/* === Student Profile Route === */}
         <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
+        <Route path="/student/meals" element={<StudentLayout><StudentMealDashboard /></StudentLayout>} />
 
         {/* === Payment Success Route === */}
         <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
+        <Route path="/meal-payment-success/:mealBookingId" element={<StudentLayout><MealPaymentSuccess /></StudentLayout>} />
+        <Route path="/admin/payments" element={<ManagePayments />} />
+
+        {/* === Company Info Routes === */}
+        <Route path="/about-us" element={<StudentLayout><AboutUs /></StudentLayout>} />
+        <Route path="/privacy-policy" element={<StudentLayout><PrivacyPolicy /></StudentLayout>} />
+        <Route path="/terms-of-service" element={<StudentLayout><TermsOfService /></StudentLayout>} />
+        <Route path="/help-center" element={<StudentLayout><HelpCenter /></StudentLayout>} />
+      
       </Routes>
     </Router>
   );

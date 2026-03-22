@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, LogIn, UserPlus, LogOut, User } from 'lucide-react';
+import { Home, LogIn, UserPlus, LogOut, User, UtensilsCrossed } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
@@ -35,10 +35,16 @@ const Navbar = () => {
               
               {/* NEW: Profile Button (Only visible to Students) */}
               {userInfo.role === 'Student' && (
-                <Link to="/profile" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
-                  <User className="w-4 h-4" />
-                  Profile
-                </Link>
+                <>
+                  <Link to="/student/meals" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <UtensilsCrossed className="w-4 h-4" />
+                    Meals
+                  </Link>
+                  <Link to="/profile" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <User className="w-4 h-4" />
+                    Profile
+                  </Link>
+                </>
               )}
 
               {/* User Badge */}
