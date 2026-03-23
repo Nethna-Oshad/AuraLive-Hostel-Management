@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Clock3, ChefHat, UtensilsCrossed, CalendarDays, CheckCircle2, Info } from 'lucide-react';
+import { Store, CalendarDays, CheckCircle2, UtensilsCrossed } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
-const MealDashboard = () => {
+const ThirdPartyMealDashboard = () => {
   const navigate = useNavigate();
   const todayDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const userInfo = useMemo(() => {
@@ -17,7 +17,7 @@ const MealDashboard = () => {
 
   const [selectedDate, setSelectedDate] = useState('');
   const [slots, setSlots] = useState([]);
-  const [hasThirdPartyShops, setHasThirdPartyShops] = useState(false);
+  const [shops, setShops] = useState([]);
   const [allFull, setAllFull] = useState(false);
   const [studentBookings, setStudentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +26,13 @@ const MealDashboard = () => {
   const [rescheduleSlotId, setRescheduleSlotId] = useState('');
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [now, setNow] = useState(new Date());
+
+  const [externalForm, setExternalForm] = useState({
+    shopName: '',
+    menuItem: '',
+    slotId: '',
+    notes: '',
+  });
 
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'Student') {
@@ -53,13 +60,13 @@ const MealDashboard = () => {
   const fetchSlots = async () => {
     if (!selectedDate) {
       setSlots([]);
-      setHasThirdPartyShops(false);
+      setShops([]);
       setAllFull(false);
       return;
     }
     const response = await axios.get(`http://localhost:5000/api/meals/slots?date=${selectedDate}`);
     setSlots(response.data.slots || []);
-    setHasThirdPartyShops((response.data.thirdPartyShops || []).length > 0);
+    setShops(response.data.thirdPartyShops || []);
     setAllFull(response.data.isAllSlotsFull || false);
   };
 
@@ -82,53 +89,48 @@ const MealDashboard = () => {
           await Promise.all([fetchSlots(), fetchMyMealBookings()]);
         } else {
           setSlots([]);
-          setHasThirdPartyShops(false);
+          setShops([]);
           setAllFull(false);
           await fetchMyMealBookings();
         }
       } catch {
-        toast.error('Failed to load meal dashboard data.');
+        toast.error('Failed to load 3rd party meal data.');
       } finally {
         setLoading(false);
       }
     };
+
     loadData();
   }, [selectedDate, userInfo]);
 
-  const totalCapacity = useMemo(
-    () => slots.reduce((sum, slot) => sum + slot.capacity, 0),
-    [slots]
-  );
-  const totalBooked = useMemo(
-    () => slots.reduce((sum, slot) => sum + slot.booked, 0),
-    [slots]
-  );
-
-  const handleKitchenBooking = async (slotId) => {
-    const selectedSlot = slots.find((slot) => slot.id === slotId);
-    if (selectedSlot && isSlotTimePassed(selectedSlot.timeRange, selectedDate)) {
-      toast.error('This slot has already started. Please book an upcoming slot.');
-      return;
-    }
+  const handleExternalOrder = async (e) => {
+    e.preventDefault();
     if (!selectedDate) {
       toast.error('Please select a date first.');
       return;
     }
+    if (externalForm.slotId) {
+      const selectedSlot = slots.find((slot) => slot.id === externalForm.slotId);
+      if (selectedSlot && isSlotTimePassed(selectedSlot.timeRange, selectedDate)) {
+        toast.error('Selected slot time has passed. Please choose an upcoming slot.');
+        return;
+      }
+    }
     try {
-      await axios.post('http://localhost:5000/api/meals/book-kitchen', {
+      await axios.post('http://localhost:5000/api/meals/order-external', {
         studentEmail: userInfo.email,
         studentName: userInfo.name,
-        slotId,
         bookingDate: selectedDate,
+        shopName: externalForm.shopName,
+        menuItem: externalForm.menuItem,
+        slotId: externalForm.slotId || undefined,
+        notes: externalForm.notes,
       });
-      toast.success('Kitchen slot booked successfully!');
-      await Promise.all([fetchSlots(), fetchMyMealBookings()]);
+      toast.success('External meal order request created.');
+      setExternalForm({ shopName: '', menuItem: '', slotId: '', notes: '' });
+      await fetchMyMealBookings();
     } catch (error) {
-      const message = error?.response?.data?.message || 'Failed to book slot.';
-      toast.error(message);
-      if (error?.response?.status === 409) {
-        setAllFull(true);
-      }
+      toast.error(error?.response?.data?.message || 'Failed to create order.');
     }
   };
 
@@ -168,6 +170,7 @@ const MealDashboard = () => {
       toast.error('Selected slot time has passed. Please choose an upcoming slot.');
       return;
     }
+
     try {
       await axios.patch(`http://localhost:5000/api/meals/${rescheduleTargetId}/reschedule`, {
         bookingDate: rescheduleDate,
@@ -197,134 +200,142 @@ const MealDashboard = () => {
             <div>
               <h1 className="text-3xl font-extrabold flex items-center gap-3">
                 <UtensilsCrossed className="w-8 h-8 text-white" />
-                Student Meal & Kitchen Dashboard
+                3rd Party Meals
               </h1>
-              <p className="text-blue-100 mt-2 max-w-3xl">
-                Book kitchen time slots. If kitchen is full or partner shops are available, you can place an external order on the 3rd Party Meals page.
+              <p className="text-blue-100 mt-2">
+                Place external meal orders from partner shops when available.
               </p>
             </div>
-            <div className="flex items-center gap-3 bg-white/95 border border-white/60 rounded-xl px-4 py-3 shadow-sm">
-              <CalendarDays className="w-5 h-5 text-[#2872A1]" />
-              <input
-                id="meal-date"
-                name="mealDate"
-                type="date"
-                value={selectedDate}
-                min={todayDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent outline-none text-sm font-semibold text-gray-700"
-              />
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 bg-white/95 border border-white/70 rounded-xl px-4 py-3 shadow-sm">
+                <CalendarDays className="w-5 h-5 text-[#2872A1]" />
+                <input
+                  id="meal-date"
+                  name="mealDate"
+                  type="date"
+                  value={selectedDate}
+                  min={todayDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent outline-none text-sm font-semibold text-gray-700"
+                />
+              </div>
+
+              <button
+                onClick={() => navigate('/student/meals')}
+                className="hidden sm:inline-flex py-3 px-5 rounded-xl font-bold bg-white text-[#2872A1] hover:bg-blue-50 transition-colors"
+              >
+                Back to Kitchen
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
-            <p className="text-sm font-medium text-gray-500">Total Kitchen Capacity</p>
-            <p className="text-3xl font-extrabold text-gray-900 mt-1">{totalCapacity}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
-            <p className="text-sm font-medium text-gray-500">Booked Slots (All Sessions)</p>
-            <p className="text-3xl font-extrabold text-[#2872A1] mt-1">{totalBooked}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
-            <p className="text-sm font-medium text-gray-500">Fallback Availability</p>
-            <p className={`text-2xl font-extrabold mt-1 ${allFull ? 'text-orange-500' : 'text-emerald-600'}`}>
-              {allFull ? 'External Orders Open' : 'Kitchen Slots Open'}
+        {!selectedDate ? (
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Select a date to continue</h2>
+            <p className="text-gray-500">
+              Choose a date first to view available partner shops and place an external order.
             </p>
           </div>
-        </div>
+        ) : (allFull || shops.length > 0) ? (
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <Store className="w-6 h-6 text-[#2872A1]" /> 3rd Party Meal Shops
+            </h2>
 
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-          <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-[#2872A1] mt-0.5" />
-            <div>
-              <p className="font-bold text-[#1f5a80]">Quick guide</p>
-              <p className="text-sm text-[#2b6287] mt-1">
-                Pick a date, choose a slot, and book instantly. If all kitchen slots are full, use the 3rd Party Meals page to place an external order.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <ChefHat className="w-6 h-6 text-[#2872A1]" /> Kitchen Booking Slots
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">Choose a preferred time slot based on current availability.</p>
-            </div>
-            {(allFull || hasThirdPartyShops) && (
-              <button
-                onClick={() => navigate('/student/meals/third-party')}
-                className="w-full lg:w-auto py-3 px-5 rounded-xl font-bold bg-orange-500 text-white hover:bg-orange-600 transition-all hover:shadow-lg"
-              >
-                Go to 3rd Party Meals
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {!selectedDate ? (
-              <div className="md:col-span-2 rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-8 text-center">
-                <p className="font-semibold text-[#1f5a80]">Select a date first to view available kitchen slots.</p>
-              </div>
-            ) : slots.length === 0 ? (
-              <div className="md:col-span-2 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
-                <p className="font-semibold text-gray-700">No kitchen slots are configured for this date.</p>
-                <p className="text-sm text-gray-500 mt-1">Try another date, or use external ordering if available.</p>
-              </div>
-            ) : (
-              slots.map((slot) => (
-                <div key={slot.id} className="border border-gray-100 rounded-2xl p-5 bg-gradient-to-br from-white to-slate-50 hover:shadow-md transition-all">
-                  {isSlotTimePassed(slot.timeRange, selectedDate) && (
-                    <span className="inline-flex mb-3 text-xs font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-100">
-                      Time Passed
-                    </span>
-                  )}
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-gray-900">{slot.label}</h3>
-                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-600">
-                      {slot.timeRange}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">
-                    <Clock3 className="w-4 h-4" />
-                    {slot.available} available of {slot.capacity}
-                  </p>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                    <div
-                      className={`h-2.5 rounded-full ${slot.isFull ? 'bg-orange-400' : 'bg-[#2872A1]'}`}
-                      style={{ width: `${Math.min((slot.booked / Math.max(slot.capacity, 1)) * 100, 100)}%` }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => handleKitchenBooking(slot.id)}
-                    disabled={slot.isFull || !selectedDate || isSlotTimePassed(slot.timeRange, selectedDate)}
-                    className={`w-full py-3 rounded-xl font-bold transition-all ${
-                      slot.isFull || !selectedDate || isSlotTimePassed(slot.timeRange, selectedDate)
-                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        : 'bg-[#2872A1] hover:bg-[#1f5a80] text-white hover:shadow-lg'
-                    }`}
-                  >
-                    {!selectedDate
-                      ? 'Select Date First'
-                      : isSlotTimePassed(slot.timeRange, selectedDate)
-                      ? 'Time Passed'
-                      : slot.isFull
-                      ? 'Slot Full'
-                      : 'Book Kitchen Slot'}
-                  </button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {shops.map((shop) => (
+                <div key={shop.name} className="border border-blue-100 bg-gradient-to-br from-blue-50 to-white rounded-2xl p-4 hover:shadow-md transition-all">
+                  <h3 className="font-bold text-gray-800">{shop.name}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{shop.cuisine}</p>
+                  <p className="text-xs font-semibold text-[#2872A1] mt-2">ETA: {shop.eta}</p>
+                  <p className="text-xs font-bold text-gray-700 mt-1">From Rs. {shop.basePrice}</p>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
+
+            <form onSubmit={handleExternalOrder} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 rounded-2xl border border-gray-100 p-5">
+              <select
+                id="external-shop"
+                name="shopName"
+                value={externalForm.shopName}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, shopName: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+                required
+              >
+                <option value="">Select Meal Shop</option>
+                {shops.map((shop) => (
+                  <option key={shop.name} value={shop.name}>
+                    {shop.name} (Rs. {shop.basePrice})
+                  </option>
+                ))}
+              </select>
+
+              <input
+                id="external-menu-item"
+                name="menuItem"
+                type="text"
+                placeholder="Meal item (e.g., Chicken Kottu)"
+                value={externalForm.menuItem}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, menuItem: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+                required
+              />
+
+              <select
+                id="external-slot"
+                name="slotId"
+                value={externalForm.slotId}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, slotId: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+                disabled={!selectedDate}
+              >
+                <option value="">Optional preferred slot window</option>
+                {slots.map((slot) => (
+                  <option key={slot.id} value={slot.id} disabled={isSlotTimePassed(slot.timeRange, selectedDate)}>
+                    {slot.label} ({slot.timeRange}){isSlotTimePassed(slot.timeRange, selectedDate) ? ' - Time passed' : ''}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                id="external-notes"
+                name="notes"
+                type="text"
+                placeholder="Notes (optional)"
+                value={externalForm.notes}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, notes: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+              />
+
+              <button
+                type="submit"
+                disabled={!selectedDate}
+                className={`md:col-span-2 py-3 rounded-xl font-bold transition-all ${
+                  !selectedDate
+                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                    : 'bg-[#2872A1] text-white hover:bg-[#1f5a80] hover:shadow-lg'
+                }`}
+              >
+                {!selectedDate ? 'Select Date First' : 'Place External Meal Order'}
+              </button>
+            </form>
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">No external meal shops available</h2>
+            <p className="text-gray-500">
+              External orders unlock when kitchen slots are full or partner shops are available for the selected date.
+            </p>
+          </div>
+        )}
 
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
             <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My Meal Bookings
           </h2>
+
           {studentBookings.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
               <p className="text-gray-500">No meal bookings yet. Start by selecting a kitchen slot above.</p>
@@ -349,14 +360,18 @@ const MealDashboard = () => {
                       </p>
                     )}
                   </div>
+
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
-                      booking.status === 'Cancelled'
-                        ? 'text-red-600 bg-red-50 border-red-100'
-                        : 'text-emerald-600 bg-emerald-50 border-emerald-100'
-                    }`}>
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
+                        booking.status === 'Cancelled'
+                          ? 'text-red-600 bg-red-50 border-red-100'
+                          : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                      }`}
+                    >
                       {booking.status}
                     </span>
+
                     {booking.type === 'External' && booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => handlePayExternalOrder(booking._id)}
@@ -365,6 +380,7 @@ const MealDashboard = () => {
                         Pay Now
                       </button>
                     )}
+
                     {booking.type === 'Kitchen' && booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => openReschedule(booking._id)}
@@ -373,6 +389,7 @@ const MealDashboard = () => {
                         Reschedule
                       </button>
                     )}
+
                     {booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => handleCancelBooking(booking._id)}
@@ -387,6 +404,7 @@ const MealDashboard = () => {
             </div>
           )}
         </div>
+
         {rescheduleTargetId && (
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Reschedule Kitchen Booking</h2>
@@ -440,4 +458,5 @@ const MealDashboard = () => {
   );
 };
 
-export default MealDashboard;
+export default ThirdPartyMealDashboard;
+

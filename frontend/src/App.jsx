@@ -37,6 +37,7 @@ import MealInsights from './pages/Meal/MealInsights';
 // Student Profile Component Import
 import Profile from './pages/Student/Profile';
 import StudentMealDashboard from './pages/Student/MealDashboard';
+import ThirdPartyMealDashboard from './pages/Student/ThirdPartyMealDashboard';
 
 // Chatbot Component Import
 import Chatbot from './components/Chatbot';
@@ -127,6 +128,7 @@ function App() {
         {/* === Student Profile Route === */}
         <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
         <Route path="/student/meals" element={<StudentLayout><StudentMealDashboard /></StudentLayout>} />
+        <Route path="/student/meals/third-party" element={<StudentLayout><ThirdPartyMealDashboard /></StudentLayout>} />
 
         {/* === Payment Success Route === */}
         <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
