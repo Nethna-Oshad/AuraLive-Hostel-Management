@@ -40,6 +40,7 @@ import Chatbot from './components/Chatbot';
 // Payment Success Component Import
 import PaymentSuccess from './pages/Payment/PaymentSuccess';
 import ManagePayments from './pages/Admin/ManagePayments';
+import MonthlySuccess from './pages/Payment/MonthlySuccess';
 
 // Company Info Pages
 // Company Info Pages (Removed '/pages' from the path)
@@ -47,7 +48,7 @@ import AboutUs from './Company/AboutUs';
 import PrivacyPolicy from './Company/PrivacyPolicy';
 import TermsOfService from './Company/TermsOfService';
 import HelpCenter from './Company/HelpCenter';
-
+import Services from './Company/Services';
 
 // Layout wrapper for Student/Public pages
 const StudentLayout = ({ children }) => {
@@ -122,13 +123,15 @@ function App() {
         {/* === Payment Success Route === */}
         <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
         <Route path="/admin/payments" element={<ManagePayments />} />
+        <Route path="/monthly-success/:bookingId" element={<StudentLayout><MonthlySuccess /></StudentLayout>} />
 
         {/* === Company Info Routes === */}
         <Route path="/about-us" element={<StudentLayout><AboutUs /></StudentLayout>} />
         <Route path="/privacy-policy" element={<StudentLayout><PrivacyPolicy /></StudentLayout>} />
         <Route path="/terms-of-service" element={<StudentLayout><TermsOfService /></StudentLayout>} />
         <Route path="/help-center" element={<StudentLayout><HelpCenter /></StudentLayout>} />
-      
+        <Route path="/services" element={<StudentLayout><Services /></StudentLayout>} />
+    
       </Routes>
     </Router>
   );
