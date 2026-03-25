@@ -65,7 +65,9 @@ const MealDashboard = () => {
 
   const fetchMyMealBookings = async () => {
     const response = await axios.get(`http://localhost:5000/api/meals/student/${userInfo.email}`);
-    setStudentBookings(response.data || []);
+    // FILTER: Only keep Kitchen bookings
+    const kitchenBookings = (response.data || []).filter(booking => booking.type === 'Kitchen');
+    setStudentBookings(kitchenBookings);
   };
 
   const fetchRescheduleSlots = async (date) => {
@@ -132,19 +134,10 @@ const MealDashboard = () => {
     }
   };
 
-  const handlePayExternalOrder = async (mealBookingId) => {
-    try {
-      const response = await axios.post('http://localhost:5000/api/payment/create-meal-checkout-session', { mealBookingId });
-      window.location.href = response.data.url;
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Unable to start payment.');
-    }
-  };
-
   const handleCancelBooking = async (bookingId) => {
     try {
       await axios.patch(`http://localhost:5000/api/meals/${bookingId}/cancel`);
-      toast.success('Meal booking cancelled.');
+      toast.success('Kitchen booking cancelled.');
       await Promise.all([fetchSlots(), fetchMyMealBookings()]);
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to cancel booking.');
@@ -323,11 +316,11 @@ const MealDashboard = () => {
 
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My Meal Bookings
+            <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My Kitchen Bookings
           </h2>
           {studentBookings.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
-              <p className="text-gray-500">No meal bookings yet. Start by selecting a kitchen slot above.</p>
+              <p className="text-gray-500">No kitchen bookings yet. Start by selecting a kitchen slot above.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -337,17 +330,10 @@ const MealDashboard = () => {
                   className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100 rounded-xl p-4 bg-gradient-to-r from-white to-slate-50 hover:shadow-sm transition-all"
                 >
                   <div>
-                    <p className="font-bold text-gray-900">
-                      {booking.type === 'Kitchen' ? 'Kitchen Slot Booking' : 'External Meal Order'}
-                    </p>
+                    <p className="font-bold text-gray-900">Kitchen Slot Booking</p>
                     <p className="text-sm text-gray-600">
                       {booking.bookingDate} | {booking.slotLabel}
                     </p>
-                    {booking.type === 'External' && (
-                      <p className="text-sm text-orange-600 mt-1">
-                        {booking.externalShopName} - {booking.externalMenuItem} (Rs. {booking.externalAmount || 0})
-                      </p>
-                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
@@ -357,15 +343,7 @@ const MealDashboard = () => {
                     }`}>
                       {booking.status}
                     </span>
-                    {booking.type === 'External' && booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
-                      <button
-                        onClick={() => handlePayExternalOrder(booking._id)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#2872A1] text-white hover:bg-[#1f5a80] transition-colors"
-                      >
-                        Pay Now
-                      </button>
-                    )}
-                    {booking.type === 'Kitchen' && booking.status !== 'Cancelled' && (
+                    {booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => openReschedule(booking._id)}
                         className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
@@ -387,6 +365,7 @@ const MealDashboard = () => {
             </div>
           )}
         </div>
+        
         {rescheduleTargetId && (
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Reschedule Kitchen Booking</h2>

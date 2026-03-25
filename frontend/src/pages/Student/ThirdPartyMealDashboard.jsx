@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Store, CalendarDays, CheckCircle2, UtensilsCrossed } from 'lucide-react';
+import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -21,10 +21,6 @@ const ThirdPartyMealDashboard = () => {
   const [allFull, setAllFull] = useState(false);
   const [studentBookings, setStudentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [rescheduleTargetId, setRescheduleTargetId] = useState('');
-  const [rescheduleDate, setRescheduleDate] = useState(new Date().toISOString().slice(0, 10));
-  const [rescheduleSlotId, setRescheduleSlotId] = useState('');
-  const [rescheduleSlots, setRescheduleSlots] = useState([]);
   const [now, setNow] = useState(new Date());
 
   const [externalForm, setExternalForm] = useState({
@@ -72,12 +68,9 @@ const ThirdPartyMealDashboard = () => {
 
   const fetchMyMealBookings = async () => {
     const response = await axios.get(`http://localhost:5000/api/meals/student/${userInfo.email}`);
-    setStudentBookings(response.data || []);
-  };
-
-  const fetchRescheduleSlots = async (date) => {
-    const response = await axios.get(`http://localhost:5000/api/meals/slots?date=${date}`);
-    setRescheduleSlots(response.data.slots || []);
+    // FILTER: Only keep External bookings
+    const externalBookings = (response.data || []).filter(booking => booking.type === 'External');
+    setStudentBookings(externalBookings);
   };
 
   useEffect(() => {
@@ -146,42 +139,131 @@ const ThirdPartyMealDashboard = () => {
   const handleCancelBooking = async (bookingId) => {
     try {
       await axios.patch(`http://localhost:5000/api/meals/${bookingId}/cancel`);
-      toast.success('Meal booking cancelled.');
+      toast.success('Meal order cancelled.');
       await Promise.all([fetchSlots(), fetchMyMealBookings()]);
     } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to cancel booking.');
+      toast.error(error?.response?.data?.message || 'Failed to cancel order.');
     }
   };
 
-  const openReschedule = async (bookingId) => {
-    setRescheduleTargetId(bookingId);
-    setRescheduleDate(selectedDate);
-    setRescheduleSlotId('');
-    await fetchRescheduleSlots(selectedDate);
+  const deliverySteps = [
+    {
+      status: 'Pending',
+      label: 'Order Accepted',
+      iconKey: 'lock',
+    },
+    {
+      status: 'Preparing',
+      label: 'Preparation Started',
+      iconKey: 'package',
+    },
+    {
+      status: 'Out for Delivery',
+      label: 'Preparation Completed',
+      iconKey: 'truck',
+    },
+    {
+      status: 'Delivered',
+      label: 'Ready for Pickup',
+      iconKey: 'check',
+    },
+  ];
+
+  const StepIcon = ({ iconKey }) => {
+    const common = 'w-5 h-5';
+    switch (iconKey) {
+      case 'lock':
+        return <Lock className={common} />;
+      case 'package':
+        return <Package2 className={common} />;
+      case 'truck':
+        return <Truck className={common} />;
+      case 'check':
+        return <CheckCircle2 className={common} />;
+      default:
+        return <CheckCircle2 className={common} />;
+    }
   };
 
-  const submitReschedule = async () => {
-    if (!rescheduleTargetId || !rescheduleDate || !rescheduleSlotId) {
-      toast.error('Please choose date and slot for reschedule.');
-      return;
-    }
-    const selectedRescheduleSlot = rescheduleSlots.find((slot) => slot.id === rescheduleSlotId);
-    if (selectedRescheduleSlot && isSlotTimePassed(selectedRescheduleSlot.timeRange, rescheduleDate)) {
-      toast.error('Selected slot time has passed. Please choose an upcoming slot.');
-      return;
-    }
+  const DELIVERY_STEP_MS = 10000;
 
-    try {
-      await axios.patch(`http://localhost:5000/api/meals/${rescheduleTargetId}/reschedule`, {
-        bookingDate: rescheduleDate,
-        slotId: rescheduleSlotId,
-      });
-      toast.success('Kitchen booking rescheduled.');
-      setRescheduleTargetId('');
-      await Promise.all([fetchSlots(), fetchMyMealBookings()]);
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Reschedule failed.');
-    }
+  const DeliveryAnimatedTracker = ({ bookingId, shouldStart }) => {
+    const [animatedIdx, setAnimatedIdx] = useState(-1);
+    const storageKey = `mealDeliveryTrackStart:${bookingId}`;
+
+    const computeIdxFromElapsed = (startTs) => {
+      if (!startTs) return 0;
+      const elapsedMs = Date.now() - startTs;
+      const raw = Math.floor(elapsedMs / DELIVERY_STEP_MS);
+      return Math.min(Math.max(raw, 0), deliverySteps.length - 1);
+    };
+
+    useEffect(() => {
+      if (!shouldStart) {
+        setAnimatedIdx(-1);
+        return;
+      }
+      let startTs = Number(localStorage.getItem(storageKey));
+      if (!startTs) {
+        startTs = Date.now();
+        localStorage.setItem(storageKey, String(startTs));
+      }
+
+      const tick = () => {
+        setAnimatedIdx(computeIdxFromElapsed(startTs));
+      };
+
+      tick();
+      const interval = setInterval(tick, 1000);
+      return () => clearInterval(interval);
+    }, [storageKey, shouldStart]);
+
+    const progressPercent = animatedIdx < 0 ? 0 : ((animatedIdx + 1) / deliverySteps.length) * 100;
+
+    return (
+      <div>
+        <div className="relative h-14 flex items-center justify-between">
+          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-gray-200 rounded-full z-0" />
+          <div
+            className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-[#2872A1] rounded-full z-0"
+            style={{ width: `${progressPercent}%` }}
+          />
+
+          {deliverySteps.map((step, stepIdx) => {
+            const isDoneOrCurrent = animatedIdx >= stepIdx;
+            return (
+              <div key={step.status} className="flex flex-col items-center w-1/4 relative z-10">
+                <div
+                  className={`w-12 h-12 rounded-full border flex items-center justify-center ${
+                    isDoneOrCurrent
+                      ? 'bg-[#CFE9FF] border-[#9FD3FF] text-[#2872A1]'
+                      : 'bg-white border-[#CFE9FF] text-gray-400'
+                  }`}
+                >
+                  <StepIcon iconKey={step.iconKey} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-start justify-between mt-2">
+          {deliverySteps.map((step, stepIdx) => {
+            const isDoneOrCurrent = animatedIdx >= stepIdx;
+            return (
+              <p
+                key={step.status}
+                className={`w-1/4 text-[11px] font-semibold leading-tight text-center ${
+                  isDoneOrCurrent ? 'text-[#1f5a80]' : 'text-gray-400'
+                }`}
+              >
+                {step.label}
+              </p>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -333,12 +415,12 @@ const ThirdPartyMealDashboard = () => {
 
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My Meal Bookings
+            <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My External Orders
           </h2>
 
           {studentBookings.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
-              <p className="text-gray-500">No meal bookings yet. Start by selecting a kitchen slot above.</p>
+              <p className="text-gray-500">No external orders yet. Start by selecting a date above.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -347,21 +429,29 @@ const ThirdPartyMealDashboard = () => {
                   key={booking._id}
                   className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100 rounded-xl p-4 bg-gradient-to-r from-white to-slate-50 hover:shadow-sm transition-all"
                 >
-                  <div>
-                    <p className="font-bold text-gray-900">
-                      {booking.type === 'Kitchen' ? 'Kitchen Slot Booking' : 'External Meal Order'}
-                    </p>
+                  <div className="w-full md:w-auto flex-1">
+                    <p className="font-bold text-gray-900">External Meal Order</p>
                     <p className="text-sm text-gray-600">
                       {booking.bookingDate} | {booking.slotLabel}
                     </p>
-                    {booking.type === 'External' && (
-                      <p className="text-sm text-orange-600 mt-1">
-                        {booking.externalShopName} - {booking.externalMenuItem} (Rs. {booking.externalAmount || 0})
+                    <p className="text-sm text-orange-600 mt-1">
+                      {booking.externalShopName} - {booking.externalMenuItem} (Rs. {booking.externalAmount || 0})
+                    </p>
+
+                    {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
+                      <p className="text-sm text-[#1f5a80] mt-1">
+                        Complete payment to confirm your order. Cancellation will be disabled after payment.
                       </p>
+                    )}
+
+                    {booking.status !== 'Cancelled' && (
+                      <div className="mt-4 max-w-lg">
+                        <DeliveryAnimatedTracker bookingId={booking._id} shouldStart={booking.paymentStatus === 'Paid'} />
+                      </div>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
                     <span
                       className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
                         booking.status === 'Cancelled'
@@ -372,7 +462,7 @@ const ThirdPartyMealDashboard = () => {
                       {booking.status}
                     </span>
 
-                    {booking.type === 'External' && booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
+                    {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => handlePayExternalOrder(booking._id)}
                         className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#2872A1] text-white hover:bg-[#1f5a80] transition-colors"
@@ -381,19 +471,15 @@ const ThirdPartyMealDashboard = () => {
                       </button>
                     )}
 
-                    {booking.type === 'Kitchen' && booking.status !== 'Cancelled' && (
-                      <button
-                        onClick={() => openReschedule(booking._id)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-                      >
-                        Reschedule
-                      </button>
-                    )}
-
                     {booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => handleCancelBooking(booking._id)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                        disabled={booking.paymentStatus === 'Paid'}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+                          booking.paymentStatus === 'Paid'
+                            ? 'bg-red-50 text-red-300 border border-red-100 cursor-not-allowed'
+                            : 'bg-red-100 text-red-700 hover:bg-red-200'
+                        }`}
                       >
                         Cancel
                       </button>
@@ -404,59 +490,9 @@ const ThirdPartyMealDashboard = () => {
             </div>
           )}
         </div>
-
-        {rescheduleTargetId && (
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Reschedule Kitchen Booking</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input
-                id="reschedule-date"
-                name="rescheduleDate"
-                type="date"
-                value={rescheduleDate}
-                min={todayDate}
-                onChange={async (e) => {
-                  const newDate = e.target.value;
-                  setRescheduleDate(newDate);
-                  await fetchRescheduleSlots(newDate);
-                }}
-                className="p-3 rounded-xl border border-gray-200 bg-gray-50"
-              />
-              <select
-                id="reschedule-slot"
-                name="rescheduleSlotId"
-                value={rescheduleSlotId}
-                onChange={(e) => setRescheduleSlotId(e.target.value)}
-                className="p-3 rounded-xl border border-gray-200 bg-gray-50"
-              >
-                <option value="">Select new slot</option>
-                {rescheduleSlots.map((slot) => (
-                  <option key={slot.id} value={slot.id} disabled={slot.isFull || isSlotTimePassed(slot.timeRange, rescheduleDate)}>
-                    {slot.label} ({slot.timeRange}) - {slot.isFull ? 'Full' : isSlotTimePassed(slot.timeRange, rescheduleDate) ? 'Time passed' : `${slot.available} available`}
-                  </option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <button
-                  onClick={submitReschedule}
-                  className="flex-1 py-3 rounded-xl font-bold bg-[#2872A1] text-white hover:bg-[#1f5a80] transition-colors"
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setRescheduleTargetId('')}
-                  className="flex-1 py-3 rounded-xl font-bold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
 export default ThirdPartyMealDashboard;
-
