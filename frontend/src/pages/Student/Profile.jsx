@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, Mail, Phone, ShieldCheck, Home as HomeIcon, 
-  FileText, Wrench, Edit3, Save, X, AlertCircle, Calendar, CheckSquare, Camera, Users, CreditCard, History, ReceiptText
+  FileText, Wrench, Edit3, X, AlertCircle, Calendar, CheckSquare, Camera, Users, CreditCard, History, ReceiptText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,8 +22,8 @@ const Profile = () => {
   
   // Modal States
   const [showWarning, setShowWarning] = useState(false); 
-  const [showHistoryModal, setShowHistoryModal] = useState(false); // History Modal
-  const [invoices, setInvoices] = useState([]); // Store Invoices
+  const [showHistoryModal, setShowHistoryModal] = useState(false); 
+  const [invoices, setInvoices] = useState([]); 
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -66,14 +66,20 @@ const Profile = () => {
           console.error("Could not fetch room details for pricing.");
         }
 
-        // Warning Popup Checker (25th of the month)
+        // --- 🚨 SMART WARNING POPUP LOGIC 🚨 ---
         const currentDay = new Date().getDate();
-        if (currentDay >= 25 && booking.monthlyRentStatus === 'Unpaid') {
+        const todayString = new Date().toDateString();
+        const lastDismissed = localStorage.getItem('rentWarningDismissedDate');
+
+        // Check if: It's past the 25th AND rent is unpaid AND they haven't clicked 'Remind Me Later' today
+        if (currentDay >= 25 && booking.monthlyRentStatus === 'Unpaid' && lastDismissed !== todayString) {
           setShowWarning(true);
+        } else {
+          setShowWarning(false);
         }
 
       } catch (err) {
-        console.log("No booking found for this student.");
+        console.log("No booking found for this student.", err);
       } finally {
         setLoading(false);
       }
@@ -81,7 +87,15 @@ const Profile = () => {
     fetchProfileData();
   }, [userInfo, navigate]);
 
+  // --- ACTIONS ---
+
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  // Dismiss Warning for 1 day
+  const handleDismissWarning = () => {
+    localStorage.setItem('rentWarningDismissedDate', new Date().toDateString());
+    setShowWarning(false);
+  };
 
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
@@ -106,14 +120,18 @@ const Profile = () => {
     }
   };
 
+  // FIXED: Removed the duplicate/broken catch blocks that caused the Vite crash!
   const handleUpdateInfo = async (e) => {
     e.preventDefault();
     try {
       const response = await axios.put(`http://localhost:5000/api/bookings/${bookingData._id}`, formData);
       setBookingData(response.data); 
       setIsEditing(false);
-      toast.success('Profile updated!');
-    } catch (err) { toast.error('Update failed.'); }
+      toast.success('Profile information updated successfully!');
+    } catch (err) {
+      console.error("Update error:", err);
+      toast.error('Failed to update information.');
+    }
   };
 
   const handlePayment = async () => {
@@ -140,7 +158,6 @@ const Profile = () => {
     }
   };
 
-  // View Payment History
   const handleViewHistory = async () => {
     setShowHistoryModal(true);
     setLoadingInvoices(true);
@@ -154,7 +171,6 @@ const Profile = () => {
     }
   };
 
-  // THIS PREVENTS SKIPPING MONTHS: It strictly calculates +1 month from their last payment
   const getNextMonthName = () => {
     if (!bookingData) return '';
     const baseDate = bookingData.paidUntil ? new Date(bookingData.paidUntil) : new Date(bookingData.createdAt);
@@ -166,15 +182,15 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans py-12 px-6 relative">
-      
+
       {/* 🚨 WARNING POPUP OVERLAY 🚨 */}
       <AnimatePresence>
         {showWarning && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
               className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center border-t-8 border-red-500"
             >
@@ -183,13 +199,13 @@ const Profile = () => {
               </div>
               <h2 className="text-3xl font-extrabold text-gray-900 mb-2">{getNextMonthName()} Rent Due!</h2>
               <p className="text-gray-600 mb-6">
-                It is past the 25th of the month. Please pay your monthly hostel rent of <strong>Rs. {roomDetails?.monthlyRent}</strong> to avoid late fees.
+                It is past the 25th of the month. Please pay your monthly hostel rent of <strong>Rs. {roomDetails?.monthlyRent || '...'}</strong> to avoid late fees.
               </p>
               <div className="space-y-3">
                 <button onClick={handleMonthlyPayment} className="w-full py-3.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition-colors flex justify-center items-center gap-2">
                   <CreditCard className="w-5 h-5" /> Pay Rent Now
                 </button>
-                <button onClick={() => setShowWarning(false)} className="w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-colors">
+                <button onClick={handleDismissWarning} className="w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-colors">
                   Remind Me Later
                 </button>
               </div>
@@ -201,11 +217,11 @@ const Profile = () => {
       {/* 🧾 PAYMENT HISTORY MODAL OVERLAY 🧾 */}
       <AnimatePresence>
         {showHistoryModal && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
               className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
             >
@@ -229,7 +245,7 @@ const Profile = () => {
                         <div>
                           <p className="font-bold text-gray-900">{invoice.description}</p>
                           <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                            <Calendar className="w-3.5 h-3.5" /> 
+                            <Calendar className="w-3.5 h-3.5" />
                             {new Date(invoice.paidAt || invoice.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                           </p>
                         </div>
@@ -265,9 +281,11 @@ const Profile = () => {
           
           {/* PROFILE LEFT COLUMN */}
           <div className="space-y-8">
+            
+            {/* Account Card */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-24 bg-[#CBDDE9]/40 z-0"></div>
-              
+
               <div className="relative z-10 flex flex-col items-center mt-4">
                 <div className="relative w-28 h-28 mb-4">
                   <div className="w-full h-full rounded-full bg-[#2872A1] text-white flex items-center justify-center text-5xl font-extrabold shadow-xl border-4 border-white overflow-hidden">
@@ -286,17 +304,47 @@ const Profile = () => {
               </div>
 
               <div className="mt-8 space-y-4">
-                <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl"><Mail className="w-5 h-5 text-[#2872A1]" /><span className="text-sm font-medium">{userInfo.email}</span></div>
-                <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl"><Phone className="w-5 h-5 text-[#2872A1]" /><span className="text-sm font-medium">{userInfo.phone || 'Not provided'}</span></div>
-                <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl"><User className="w-5 h-5 text-[#2872A1]" /><span className="text-sm font-medium">{userInfo.gender || 'Not provided'}</span></div>
+                <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl">
+                  <Mail className="w-5 h-5 text-[#2872A1]" />
+                  <span className="text-sm font-medium">{userInfo.email}</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl">
+                  <Phone className="w-5 h-5 text-[#2872A1]" />
+                  <span className="text-sm font-medium">{userInfo.phone || 'Not provided'}</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl">
+                  <User className="w-5 h-5 text-[#2872A1]" />
+                  <span className="text-sm font-medium">{userInfo.gender || 'Not provided'}</span>
+                </div>
               </div>
             </motion.div>
+
+            {/* CREATIVE MAINTENANCE BUTTON CARD */}
+            <div
+              className="relative rounded-3xl overflow-hidden shadow-lg group cursor-pointer"
+              onClick={() => navigate('/student/maintenance')}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-[#1f5a80] to-[#153e5c] z-0 transition-transform duration-500 group-hover:scale-105"></div>
+              <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors"></div>
+
+              <div className="relative z-10 p-8 flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform duration-300">
+                  <Wrench className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-white font-bold text-xl mb-2">Room Issue?</h3>
+                <p className="text-[#CBDDE9] text-sm mb-6">Request our maintenance team to fix AC, plumbing, or furniture issues.</p>
+                <div className="bg-white text-[#1f5a80] px-6 py-2.5 rounded-full text-sm font-bold shadow-md group-hover:shadow-xl transition-shadow flex items-center gap-2">
+                  Request Maintenance
+                </div>
+              </div>
+            </div>
+
           </div>
 
-          {/* MAIN RIGHT COLUMN */}
+          {/* RIGHT COLUMN: Booking & Extra Information */}
           <div className="lg:col-span-2 space-y-8">
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 h-full">
-              
+
               {bookingData ? (
                 <>
                   <div className="flex justify-between items-start mb-8 pb-6 border-b border-gray-100">
@@ -306,7 +354,7 @@ const Profile = () => {
                       </h3>
                       <p className="text-gray-500 text-sm mt-1">Your current hostel accommodation</p>
                     </div>
-                    
+
                     <div className="text-right flex flex-col items-end">
                       <span className="block text-3xl font-extrabold text-[#2872A1]">{bookingData.roomNumber}</span>
                       <span className={`text-xs font-bold uppercase tracking-wider mb-3 ${bookingData.status === 'Pending Approval' ? 'text-orange-500' : 'text-emerald-500'}`}>
@@ -337,7 +385,7 @@ const Profile = () => {
                             <History className="w-3.5 h-3.5" /> History
                           </button>
                         </div>
-                        
+
                         {bookingData.monthlyRentStatus === 'Paid' && (
                           <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 uppercase tracking-wider">
                             <CheckSquare className="w-3 h-3" /> Up to Date
@@ -349,15 +397,15 @@ const Profile = () => {
                           </span>
                         )}
                       </div>
-                      
+
                       <div className="bg-white p-4 rounded-xl border border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 shadow-sm">
                         <div>
                           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Next Payment For</p>
                           <p className="text-xl font-extrabold text-gray-900">{getNextMonthName()}</p>
                           <p className="text-sm font-bold text-[#2872A1]">Rs. {roomDetails ? roomDetails.monthlyRent : '...'}</p>
                         </div>
-                        <button 
-                          onClick={handleMonthlyPayment} 
+                        <button
+                          onClick={handleMonthlyPayment}
                           className="bg-[#2872A1] hover:bg-[#1f5a80] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
                         >
                           Pay in Advance
@@ -424,8 +472,10 @@ const Profile = () => {
               )}
             </motion.div>
           </div>
+
         </div>
       </div>
+      
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
