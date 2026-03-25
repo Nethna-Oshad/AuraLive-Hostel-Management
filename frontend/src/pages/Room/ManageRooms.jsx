@@ -91,7 +91,9 @@ const ManageRooms = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // STRICT FORM VALIDATIONS
+    // ==========================================
+    // STRICT FORM VALIDATIONS BEFORE SUBMITTING
+    // ==========================================
     const { roomNumber, monthlyRent, keyMoney, maxCapacity, roomType } = formData;
     
     if (!roomNumber.trim()) return toast.error("Room Number cannot be empty.");
@@ -103,6 +105,7 @@ const ManageRooms = () => {
     if (roomType === 'Double' && capacity !== 2) return toast.error("Double rooms must have exactly 2 capacity.");
     if (roomType === 'Triple' && capacity !== 3) return toast.error("Triple rooms must have exactly 3 capacity.");
     if (roomType === 'Shared Dorm' && capacity < 4) return toast.error("Shared Dorms must have a capacity of 4 or more.");
+    // ==========================================
 
     const submitData = new FormData();
     Object.keys(formData).forEach(key => {
@@ -242,9 +245,6 @@ const ManageRooms = () => {
                           {!room.display && <span className="block mt-1 text-[10px] text-gray-400 font-bold uppercase">Hidden</span>}
                         </td>
                         
-                        {/* ========================================== */}
-                        {/* ACTIONS: VIEW, EDIT, DELETE */}
-                        {/* ========================================== */}
                         <td className="p-4 text-right space-x-2">
                           <button onClick={() => openViewModal(room)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg font-semibold transition-colors inline-flex items-center gap-1">
                             <Eye className="w-4 h-4" /> View
@@ -274,6 +274,7 @@ const ManageRooms = () => {
                 </h3>
                 
                 <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 custom-scrollbar">
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-600 mb-1">Room Number *</label>
@@ -314,11 +315,11 @@ const ManageRooms = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-[#2872A1] mb-1">Monthly Rent (Rs) *</label>
-                        <input type="number" name="monthlyRent" value={formData.monthlyRent} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm bg-white focus:ring-2 focus:ring-[#2872A1]" />
+                        <input type="number" name="monthlyRent" value={formData.monthlyRent} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm bg-white focus:ring-2 focus:ring-[#2872A1]" placeholder="e.g. 25000" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-[#2872A1] mb-1">Key Money (Rs) *</label>
-                        <input type="number" name="keyMoney" value={formData.keyMoney} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm bg-white focus:ring-2 focus:ring-[#2872A1]" />
+                        <input type="number" name="keyMoney" value={formData.keyMoney} onChange={handleInputChange} required className="w-full p-2.5 border border-gray-200 rounded-lg outline-none text-sm bg-white focus:ring-2 focus:ring-[#2872A1]" placeholder="e.g. 50000" />
                       </div>
                     </div>
                     <div>
@@ -335,6 +336,9 @@ const ManageRooms = () => {
                           isCapacityLocked ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white focus:ring-2 focus:ring-[#2872A1]'
                         }`} 
                       />
+                      {isCapacityLocked && (
+                        <p className="text-[10px] text-gray-500 mt-1 font-bold">Locked based on selected Room Type.</p>
+                      )}
                     </div>
                   </div>
 

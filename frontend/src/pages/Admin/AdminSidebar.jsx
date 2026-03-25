@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-// All icons merged perfectly into one single line
+// I have merged ALL imports into this single line. Do not duplicate this!
 import { LayoutDashboard, BedDouble, Users, Shirt, Utensils, Wrench, LogOut, ClipboardList, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,17 +39,17 @@ const AdminSidebar = () => {
           <BedDouble className="w-5 h-5 shrink-0" />
           <span className="text-sm tracking-wide">Manage Rooms</span>
         </Link>
-
-        {/* Maintenance Tickets Link */}
-        <Link to="/admin/maintenance" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/maintenance')}`}>
-          <ClipboardList className="w-5 h-5 shrink-0" />
-          <span className="text-sm tracking-wide">Maintenance Tickets</span>
-        </Link>
         
         {/* Payments & Finance Link */}
         <Link to="/admin/payments" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/payments')}`}>
           <DollarSign className="w-5 h-5 shrink-0" />
           <span className="text-sm tracking-wide">Payments & Finance</span>
+        </Link>
+
+        {/* Maintenance Tickets Link */}
+        <Link to="/admin/maintenance" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/maintenance')}`}>
+          <ClipboardList className="w-5 h-5 shrink-0" />
+          <span className="text-sm tracking-wide">Maintenance Tickets</span>
         </Link>
 
         <div className="pt-6 pb-2 px-4 text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">User Management</div>

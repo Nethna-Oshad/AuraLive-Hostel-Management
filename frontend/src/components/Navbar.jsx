@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Home, LogIn, UserPlus, LogOut, User, UtensilsCrossed } from 'lucide-react';
 import axios from 'axios';
-import { LogIn, UserPlus, LogOut } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
@@ -63,8 +63,29 @@ const Navbar = () => {
           {userInfo ? (
             <div className="flex items-center space-x-5">
               
+              {/* NEW: Profile Button (Only visible to Students) */}
+              {userInfo.role === 'Student' && (
+                <>
+                  <Link to="/student/meals" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <UtensilsCrossed className="w-4 h-4" />
+                    Meals
+                  </Link>
+                  <Link to="/profile" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <User className="w-4 h-4" />
+                    Profile
+                  </Link>
+                </>
+              )}
+
+              {/* User Badge */}
+              <div className="flex items-center gap-2 bg-[#CBDDE9]/20 px-4 py-1.5 rounded-full border border-[#CBDDE9]/50">
+                <span className="text-gray-600">
+                  Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
+                </span>
+              </div>
+              
               {/* CREATIVE PROFILE BADGE */}
-              {userInfo.role === 'Student' ? (
+              {userInfo.role === 'Student' && (
                 <Link 
                   to="/profile" 
                   className="flex items-center gap-3 p-1 pr-4 bg-gray-50 border border-transparent hover:border-gray-200 rounded-full transition-all duration-300 hover:shadow-sm group"
@@ -77,16 +98,7 @@ const Navbar = () => {
                       userInfo.name.charAt(0).toUpperCase()
                     )}
                   </div>
-                  <span className="text-sm text-gray-500 font-medium">
-                    Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
-                  </span>
                 </Link>
-              ) : (
-                <div className="flex items-center gap-2 bg-[#CBDDE9]/20 px-4 py-1.5 rounded-full border border-[#CBDDE9]/50">
-                  <span className="text-gray-600">
-                    Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
-                  </span>
-                </div>
               )}
               
               {/* Logout Button */}

@@ -15,8 +15,8 @@ import ManageStudents from './pages/Admin/ManageStudents';
 import ManageLaundry from './pages/Admin/ManageLaundry';
 import ManageMeals from './pages/Admin/ManageMeals';
 import ManageMaintainers from './pages/Admin/ManageMaintainers';
-// 👇 ALUTH: Manage Maintenance Import Eka 👇
 import ManageMaintenance from './pages/Admin/ManageMaintenance';
+import ManagePayments from './pages/Admin/ManagePayments'; // <--- Kept only one
 
 // Room Management Component Import
 import ManageRooms from './pages/Room/ManageRooms';
@@ -31,38 +31,37 @@ import MaintainersRegistration from './pages/Maintainers/MaintainersRegistation'
 // Partner Dashboard Component Imports
 import LaundryDashboard from './pages/Laundry/LaundryDashboard';
 import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
-import MaintainerTasks from './pages/Maintainers/MaintainerTasks'; // 👈 NEW IMPORT
-import MaintainerHistory from './pages/Maintainers/MaintainerHistory'; // 👈 NEW IMPORT
+import MaintainerTasks from './pages/Maintainers/MaintainerTasks'; 
+import MaintainerHistory from './pages/Maintainers/MaintainerHistory'; 
 import MealDashboard from './pages/Meal/MealDashboard';
+import MealOrders from './pages/Meal/MealOrders';
+import MealMenuManagement from './pages/Meal/MealMenuManagement';
+import MealInsights from './pages/Meal/MealInsights';
 
 // Student Profile Component Import
 import Profile from './pages/Student/Profile';
-
-// 👇 --- Added for Maintenance Feature (My Part) --- 👇
+import StudentMealDashboard from './pages/Student/MealDashboard';
+import ThirdPartyMealDashboard from './pages/Student/ThirdPartyMealDashboard';
 import StudentMaintenance from './pages/Student/StudentMaintenance';
-// 👆 ---------------------------------------------- 👆
 
 // Chatbot Component Import
 import Chatbot from './components/Chatbot';
 
 // Payment Success Component Import
 import PaymentSuccess from './pages/Payment/PaymentSuccess';
-import ManagePayments from './pages/Admin/ManagePayments';
+import MealPaymentSuccess from './pages/Payment/MealPaymentSuccess';
 import MonthlySuccess from './pages/Payment/MonthlySuccess';
 
 // Company Info Pages
-// Company Info Pages (Removed '/pages' from the path)
-import AboutUs from './Company/AboutUs';
-import PrivacyPolicy from './Company/PrivacyPolicy';
-import TermsOfService from './Company/TermsOfService';
-import HelpCenter from './Company/HelpCenter';
+import AboutUs from './Company/AboutUs'; // <--- Kept only one
+import PrivacyPolicy from './Company/PrivacyPolicy'; // <--- Kept only one
+import TermsOfService from './Company/TermsOfService'; // <--- Kept only one
+import HelpCenter from './Company/HelpCenter'; // <--- Kept only one
 import Services from './Company/Services';
 
 // Layout wrapper for Student/Public pages
 const StudentLayout = ({ children }) => {
-  // Check who is logged in
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-  // Only show the chatbot if the user is a Student OR if no one is logged in yet (guest browsing)
   const showChatbot = !userInfo || userInfo.role === 'Student';
 
   return (
@@ -70,7 +69,6 @@ const StudentLayout = ({ children }) => {
       <Navbar />
       <main className="flex-grow bg-gray-50">{children}</main>
       <Footer />
-      {/* Chatbot is now cleanly scoped only to the student layout! */}
       {showChatbot && <Chatbot />} 
     </div>
   );
@@ -84,7 +82,6 @@ const AuthLayout = ({ children }) => (
 function App() {
   return (
     <Router>
-      {/* Global Toast Notifications initialized here */}
       <Toaster 
         position="top-center" 
         reverseOrder={false} 
@@ -104,9 +101,8 @@ function App() {
         <Route path="/admin/laundry" element={<ManageLaundry />} />
         <Route path="/admin/meals" element={<ManageMeals />} />
         <Route path="/admin/maintainers" element={<ManageMaintainers />} />
-        
-        {/* 👇 ALUTH: Admin Maintenance Route Eka 👇 */}
         <Route path="/admin/maintenance" element={<ManageMaintenance />} />
+        <Route path="/admin/payments" element={<ManagePayments />} />
 
         {/* === Room Management Route === */}
         <Route path="/admin/rooms" element={<ManageRooms />} />
@@ -116,18 +112,18 @@ function App() {
         {/* === Partner Dashboard Routes === */}
         <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
-        <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> {/* 👈 NEW ROUTE */}
-        <Route path="/maintainer/completed" element={<MaintainerHistory />} /> {/* 👈 NEW ROUTE */}
+        <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> 
+        <Route path="/maintainer/completed" element={<MaintainerHistory />} /> 
         <Route path="/meal/dashboard" element={<MealDashboard />} />
+        <Route path="/meal/orders" element={<MealOrders />} />
+        <Route path="/meal/menu" element={<MealMenuManagement />} />
+        <Route path="/meal/insights" element={<MealInsights />} />
 
         {/* === Student Routes (Using StudentLayout) === */}
         <Route path="/" element={<StudentLayout><Home /></StudentLayout>} />
         <Route path="/home" element={<StudentLayout><Home /></StudentLayout>} />
         <Route path="/register" element={<StudentLayout><Register /></StudentLayout>} />
-        
-        {/* 👇 --- Added for Maintenance Feature (My Part) --- 👇 */}
         <Route path="/student/maintenance" element={<StudentLayout><StudentMaintenance /></StudentLayout>} />
-        {/* 👆 ---------------------------------------------- 👆 */}
         
         {/* === Partner Registration Routes (Using StudentLayout) === */}
         <Route path="/register/laundry" element={<StudentLayout><LaundryRegistration /></StudentLayout>} />
@@ -136,10 +132,12 @@ function App() {
 
         {/* === Student Profile Route === */}
         <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
+        <Route path="/student/meals" element={<StudentLayout><StudentMealDashboard /></StudentLayout>} />
+        <Route path="/student/meals/third-party" element={<StudentLayout><ThirdPartyMealDashboard /></StudentLayout>} />
 
         {/* === Payment Success Route === */}
         <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
-        <Route path="/admin/payments" element={<ManagePayments />} />
+        <Route path="/meal-payment-success/:mealBookingId" element={<StudentLayout><MealPaymentSuccess /></StudentLayout>} />
         <Route path="/monthly-success/:bookingId" element={<StudentLayout><MonthlySuccess /></StudentLayout>} />
 
         {/* === Company Info Routes === */}
@@ -148,7 +146,7 @@ function App() {
         <Route path="/terms-of-service" element={<StudentLayout><TermsOfService /></StudentLayout>} />
         <Route path="/help-center" element={<StudentLayout><HelpCenter /></StudentLayout>} />
         <Route path="/services" element={<StudentLayout><Services /></StudentLayout>} />
-    
+      
       </Routes>
     </Router>
   );

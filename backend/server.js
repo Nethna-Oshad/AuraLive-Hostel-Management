@@ -21,6 +21,8 @@ const maintenanceRoutes = require('./routes/maintenanceRoute');
 const chatbotRoutes = require('./routes/chatbotRoute');
 const paymentRoutes = require('./routes/paymentRoute');
 const invoiceRoutes = require('./routes/invoiceRoute');
+const mealRoutes = require('./routes/mealRoute');
+
 
 // Load environment variables from .env
 dotenv.config();
@@ -75,6 +77,8 @@ app.use('/api/maintenance', maintenanceRoutes);
 // ---------------------------------------
 app.use('/api/chat', chatbotRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/meals', mealRoutes);
 app.use('/api/invoices', invoiceRoutes);
 
 // Static folder for Profile Pictures
