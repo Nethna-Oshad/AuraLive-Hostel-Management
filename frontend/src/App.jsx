@@ -15,6 +15,8 @@ import ManageStudents from './pages/Admin/ManageStudents';
 import ManageLaundry from './pages/Admin/ManageLaundry';
 import ManageMeals from './pages/Admin/ManageMeals';
 import ManageMaintainers from './pages/Admin/ManageMaintainers';
+// 👇 ALUTH: Manage Maintenance Import Eka 👇
+import ManageMaintenance from './pages/Admin/ManageMaintenance';
 
 // Room Management Component Import
 import ManageRooms from './pages/Room/ManageRooms';
@@ -29,10 +31,16 @@ import MaintainersRegistration from './pages/Maintainers/MaintainersRegistation'
 // Partner Dashboard Component Imports
 import LaundryDashboard from './pages/Laundry/LaundryDashboard';
 import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
+import MaintainerTasks from './pages/Maintainers/MaintainerTasks'; // 👈 NEW IMPORT
+import MaintainerHistory from './pages/Maintainers/MaintainerHistory'; // 👈 NEW IMPORT
 import MealDashboard from './pages/Meal/MealDashboard';
 
 // Student Profile Component Import
 import Profile from './pages/Student/Profile';
+
+// 👇 --- Added for Maintenance Feature (My Part) --- 👇
+import StudentMaintenance from './pages/Student/StudentMaintenance';
+// 👆 ---------------------------------------------- 👆
 
 // Layout wrapper for Student/Public pages
 const StudentLayout = ({ children }) => (
@@ -71,6 +79,9 @@ function App() {
         <Route path="/admin/laundry" element={<ManageLaundry />} />
         <Route path="/admin/meals" element={<ManageMeals />} />
         <Route path="/admin/maintainers" element={<ManageMaintainers />} />
+        
+        {/* 👇 ALUTH: Admin Maintenance Route Eka 👇 */}
+        <Route path="/admin/maintenance" element={<ManageMaintenance />} />
 
         {/* === Room Management Route === */}
         <Route path="/admin/rooms" element={<ManageRooms />} />
@@ -80,12 +91,18 @@ function App() {
         {/* === Partner Dashboard Routes === */}
         <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
+        <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> {/* 👈 NEW ROUTE */}
+        <Route path="/maintainer/completed" element={<MaintainerHistory />} /> {/* 👈 NEW ROUTE */}
         <Route path="/meal/dashboard" element={<MealDashboard />} />
 
         {/* === Student Routes (Using StudentLayout) === */}
         <Route path="/" element={<StudentLayout><Home /></StudentLayout>} />
         <Route path="/home" element={<StudentLayout><Home /></StudentLayout>} />
         <Route path="/register" element={<StudentLayout><Register /></StudentLayout>} />
+        
+        {/* 👇 --- Added for Maintenance Feature (My Part) --- 👇 */}
+        <Route path="/student/maintenance" element={<StudentLayout><StudentMaintenance /></StudentLayout>} />
+        {/* 👆 ---------------------------------------------- 👆 */}
         
         {/* === Partner Registration Routes (Using StudentLayout) === */}
         <Route path="/register/laundry" element={<StudentLayout><LaundryRegistration /></StudentLayout>} />

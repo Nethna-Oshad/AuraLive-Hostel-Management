@@ -120,10 +120,8 @@ const Profile = () => {
             <motion.div 
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
               className="relative rounded-3xl overflow-hidden shadow-lg group cursor-pointer"
-              onClick={() => {
-                // Future route for maintenance requests
-                toast('Maintenance Request portal coming soon!', { icon: '🔧' });
-              }}
+              // 👇 UPDATED: Meka click kalama dan maintenance page ekata yai 👇
+              onClick={() => navigate('/student/maintenance')}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-[#1f5a80] to-[#153e5c] z-0 transition-transform duration-500 group-hover:scale-105"></div>
               
