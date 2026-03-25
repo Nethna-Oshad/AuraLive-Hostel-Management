@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BedDouble, Users, Shirt, Utensils, Wrench, LogOut } from 'lucide-react';
+// Added DollarSign here!
+import { LayoutDashboard, BedDouble, Users, Shirt, Utensils, Wrench, LogOut, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const AdminSidebar = () => {
@@ -8,7 +9,6 @@ const AdminSidebar = () => {
   const navigate = useNavigate();
   const adminInfo = JSON.parse(localStorage.getItem('userInfo')) || { name: 'Admin User', email: 'admin@auralive.com' };
   
-  // Upgraded styling for the active state using brand colors
   const isActive = (path) => 
     location.pathname.startsWith(path)
       ? "bg-[#2872A1] text-white font-bold shadow-md shadow-[#2872A1]/30" 
@@ -40,6 +40,12 @@ const AdminSidebar = () => {
           <span className="text-sm tracking-wide">Manage Rooms</span>
         </Link>
         
+        {/* NEW: Payments & Finance Link */}
+        <Link to="/admin/payments" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/payments')}`}>
+          <DollarSign className="w-5 h-5 shrink-0" />
+          <span className="text-sm tracking-wide">Payments & Finance</span>
+        </Link>
+
         <div className="pt-6 pb-2 px-4 text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">User Management</div>
 
         <Link to="/admin/students" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/students')}`}>

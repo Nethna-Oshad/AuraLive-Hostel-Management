@@ -35,26 +35,18 @@ const Footer = () => {
           </div>
 
           {/* Column 2: Quick Links */}
-          <div>
-            <h4 className="text-gray-900 font-bold mb-5 uppercase tracking-wider text-sm">Explore</h4>
-            <ul className="space-y-3">
-              <li><Link to="/home" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Find Rooms</Link></li>
-              <li><Link to="/register/laundry" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Laundry Services</Link></li>
-              <li><Link to="/register/meal" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Meal Plans</Link></li>
-              <li><Link to="/register/maintainer" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Maintenance Support</Link></li>
-            </ul>
-          </div>
-
           {/* Column 3: Legal & Company */}
-          <div>
-            <h4 className="text-gray-900 font-bold mb-5 uppercase tracking-wider text-sm">Company</h4>
-            <ul className="space-y-3">
-              <li><Link to="#" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> About Us</Link></li>
-              <li><Link to="#" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Privacy Policy</Link></li>
-              <li><Link to="#" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Terms of Service</Link></li>
-              <li><Link to="#" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Help Center</Link></li>
-            </ul>
-          </div>
+<div>
+  <h4 className="text-gray-900 font-bold mb-5 uppercase tracking-wider text-sm">Company</h4>
+  <ul className="space-y-3">
+    <li><Link to="/about-us" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> About Us</Link></li>
+    <li><Link to="/privacy-policy" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Privacy Policy</Link></li>
+    <li><Link to="/terms-of-service" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Terms of Service</Link></li>
+    <li><Link to="/help-center" className="text-gray-500 hover:text-[#2872A1] transition-colors text-sm font-medium flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#CBDDE9]"></span> Help Center</Link></li>
+  </ul>
+</div>
+
+          
 
         </div>
 
