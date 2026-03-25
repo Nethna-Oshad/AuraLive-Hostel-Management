@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, Mail, Phone, ShieldCheck, Home as HomeIcon, 
@@ -45,7 +44,7 @@ const Profile = () => {
         });
       } catch (err) {
         // If 404, it just means they haven't booked a room yet. That's fine!
-        console.log("No booking found for this student.");
+        console.log("No booking found for this student.", err);
       } finally {
         setLoading(false);
       }
@@ -66,6 +65,7 @@ const Profile = () => {
       setIsEditing(false);
       toast.success('Profile information updated successfully!');
     } catch (err) {
+      console.error("Update error:", err);
       toast.error('Failed to update information.');
     }
   };
@@ -87,7 +87,7 @@ const Profile = () => {
           <div className="space-y-8">
             
             {/* Account Card */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 relative overflow-hidden">
+            <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-24 bg-[#CBDDE9]/40 z-0"></div>
               
               <div className="relative z-10 flex flex-col items-center mt-4">
@@ -114,13 +114,12 @@ const Profile = () => {
                   <span className="text-sm font-medium">{userInfo.gender || 'Not provided'}</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* CREATIVE MAINTENANCE BUTTON CARD */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            <div 
               className="relative rounded-3xl overflow-hidden shadow-lg group cursor-pointer"
-              // 👇 UPDATED: Meka click kalama dan maintenance page ekata yai 👇
+              // 👇 UPDATED
               onClick={() => navigate('/student/maintenance')}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-[#1f5a80] to-[#153e5c] z-0 transition-transform duration-500 group-hover:scale-105"></div>
@@ -138,13 +137,13 @@ const Profile = () => {
                   Request Maintenance
                 </div>
               </div>
-            </motion.div>
+            </div>
 
           </div>
 
           {/* RIGHT COLUMN: Booking & Extra Information */}
           <div className="lg:col-span-2">
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 h-full">
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 h-full">
               
               {bookingData ? (
                 <>
@@ -246,7 +245,7 @@ const Profile = () => {
                 </div>
               )}
 
-            </motion.div>
+            </div>
           </div>
 
         </div>

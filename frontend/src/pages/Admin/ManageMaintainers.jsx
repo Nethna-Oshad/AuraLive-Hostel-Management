@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Wrench, Search, Star, Briefcase, CheckCircle, XCircle, ShieldCheck } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import AdminSidebar from './AdminSidebar';
@@ -24,6 +23,7 @@ const ManageMaintainers = () => {
         toast.error("Failed to fetch maintainers");
       }
     } catch (error) {
+      console.error("Fetch error:", error);
       toast.error("Server error while loading data");
     } finally {
       setLoading(false);
@@ -48,6 +48,7 @@ const ManageMaintainers = () => {
         toast.error("Failed to update status", { id: loadingToast });
       }
     } catch (error) {
+      console.error("Status update error:", error);
       toast.error("Network error", { id: loadingToast });
     }
   };
@@ -106,7 +107,7 @@ const ManageMaintainers = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredUsers.length > 0 ? filteredUsers.map((user) => (
-                      <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={user._id} className="hover:bg-gray-50/50 transition-colors">
+                      <tr key={user._id} className="hover:bg-gray-50/50 transition-colors">
                         
                         {/* Name & Contact */}
                         <td className="p-5">
@@ -179,7 +180,7 @@ const ManageMaintainers = () => {
                           </button>
                         </td>
                         
-                      </motion.tr>
+                      </tr>
                     )) : (
                       <tr>
                         <td colSpan="5" className="p-12 text-center">
