@@ -28,11 +28,19 @@ import MaintainersRegistration from './pages/Maintainers/MaintainersRegistation'
 
 // Partner Dashboard Component Imports
 import LaundryDashboard from './pages/Laundry/LaundryDashboard';
+import ManageOrders from './pages/Laundry/ManageOrders'; 
+import OrderHistory from './pages/Laundry/OrderHistory';
+import LaundrySettings from './pages/Laundry/LaundrySettings'; // 👈 NEW IMPORT ADDED HERE
 import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
 import MealDashboard from './pages/Meal/MealDashboard';
 
 // Student Profile Component Import
 import Profile from './pages/Student/Profile';
+
+// 👇 --- Student Laundry & Orders --- 👇
+import StudentLaundry from './pages/Student/StudentLaundry';
+import MyLaundryOrders from './pages/Student/MyLaundryOrders'; 
+// 👆 --------------------------------- 👆
 
 // Chatbot Component Import
 import Chatbot from './components/Chatbot';
@@ -42,9 +50,7 @@ import PaymentSuccess from './pages/Payment/PaymentSuccess';
 
 // Layout wrapper for Student/Public pages
 const StudentLayout = ({ children }) => {
-  // Check who is logged in
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-  // Only show the chatbot if the user is a Student OR if no one is logged in yet (guest browsing)
   const showChatbot = !userInfo || userInfo.role === 'Student';
 
   return (
@@ -52,21 +58,14 @@ const StudentLayout = ({ children }) => {
       <Navbar />
       <main className="flex-grow bg-gray-50">{children}</main>
       <Footer />
-      {/* Chatbot is now cleanly scoped only to the student layout! */}
       {showChatbot && <Chatbot />} 
     </div>
   );
 };
 
-// Layout wrapper for pages without Navbar/Footer (like Login)
-const AuthLayout = ({ children }) => (
-  <main className="min-h-screen bg-gray-50">{children}</main>
-);
-
 function App() {
   return (
     <Router>
-      {/* Global Toast Notifications initialized here */}
       <Toaster 
         position="top-center" 
         reverseOrder={false} 
@@ -94,6 +93,9 @@ function App() {
 
         {/* === Partner Dashboard Routes === */}
         <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
+        <Route path="/laundry/orders" element={<ManageOrders />} />
+        <Route path="/laundry/history" element={<OrderHistory />} /> 
+        <Route path="/laundry/settings" element={<LaundrySettings />} /> {/* 👈 NEW ROUTE ADDED HERE */}
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
         <Route path="/meal/dashboard" element={<MealDashboard />} />
 
@@ -102,7 +104,12 @@ function App() {
         <Route path="/home" element={<StudentLayout><Home /></StudentLayout>} />
         <Route path="/register" element={<StudentLayout><Register /></StudentLayout>} />
         
-        {/* === Partner Registration Routes (Using StudentLayout) === */}
+        {/* 👇 --- Student Laundry & My Orders --- 👇 */}
+        <Route path="/student/laundry" element={<StudentLayout><StudentLaundry /></StudentLayout>} />
+        <Route path="/student/my-orders" element={<StudentLayout><MyLaundryOrders /></StudentLayout>} />
+        {/* 👆 ------------------------------------ 👆 */}
+        
+        {/* === Partner Registration Routes === */}
         <Route path="/register/laundry" element={<StudentLayout><LaundryRegistration /></StudentLayout>} />
         <Route path="/register/meal" element={<StudentLayout><MealSupplierRegistration /></StudentLayout>} />
         <Route path="/register/maintainer" element={<StudentLayout><MaintainersRegistration /></StudentLayout>} />

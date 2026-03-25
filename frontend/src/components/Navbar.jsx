@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, LogIn, UserPlus, LogOut, User } from 'lucide-react';
+import { Home, LogIn, UserPlus, LogOut, User, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
@@ -33,18 +33,26 @@ const Navbar = () => {
           {userInfo ? (
             <div className="flex items-center space-x-5 pl-4 border-l border-gray-200">
               
-              {/* NEW: Profile Button (Only visible to Students) */}
+              {/* Profile & My Orders (Only visible to Students) */}
               {userInfo.role === 'Student' && (
-                <Link to="/profile" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
-                  <User className="w-4 h-4" />
-                  Profile
-                </Link>
+                <>
+                  {/* 👇 NEW: My Orders Link 👇 */}
+                  <Link to="/student/my-orders" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <ShoppingBag className="w-4 h-4" />
+                    My Orders
+                  </Link>
+
+                  <Link to="/profile" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <User className="w-4 h-4" />
+                    Profile
+                  </Link>
+                </>
               )}
 
               {/* User Badge */}
               <div className="flex items-center gap-2 bg-[#CBDDE9]/20 px-4 py-1.5 rounded-full border border-[#CBDDE9]/50">
-                <span className="text-gray-600">
-                  Hi, <span className="font-bold text-[#2872A1]">{userInfo.name}</span>
+                <span className="text-gray-600 text-xs">
+                  Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
                 </span>
               </div>
               

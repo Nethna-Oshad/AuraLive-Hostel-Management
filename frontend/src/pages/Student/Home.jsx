@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Users, BedDouble, CheckCircle, XCircle, AlertCircle, Search, Shirt, Utensils, Wrench } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Users, BedDouble, CheckCircle, XCircle, AlertCircle, 
+  Search, Shirt, Utensils, Wrench, ArrowRight, Clock, Loader2 
+} from 'lucide-react';
 
 const Home = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [orderLoading, setOrderLoading] = useState(false);
   const navigate = useNavigate();
   
-  // Check if a user is logged in
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
 
-  // Online photo library for different room types
   const roomPhotos = {
     single: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=500&q=60",
     double: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=60",
@@ -20,23 +23,7 @@ const Home = () => {
     default: "https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=500&q=60"
   };
 
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/rooms');
-        // CRUCIAL LOGIC: Only show rooms where Admin set display to true
-        const visibleRooms = response.data.filter(room => room.display === true);
-        setRooms(visibleRooms);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching rooms:", err);
-        setLoading(false);
-      }
-    };
-    fetchRooms();
-  }, []);
-
-  // Framer Motion Animation Variants
+  // 👇 --- Animation Variants (Fixed the missing variables) --- 👇
   const containerVariants = {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -47,8 +34,48 @@ const Home = () => {
     show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 15 } }
   };
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch Rooms
+        const roomRes = await axios.get('http://localhost:5000/api/rooms');
+        const visibleRooms = roomRes.data.filter(room => room.display === true);
+        setRooms(visibleRooms);
+
+        // Fetch Latest Laundry Order if student is logged in
+        if (userInfo?._id && userInfo?.role === 'Student') {
+          setOrderLoading(true);
+          const orderRes = await axios.get(`http://localhost:5000/api/laundry/student/${userInfo._id}`);
+          if (orderRes.data && orderRes.data.length > 0) {
+            // Get the most recent order that isn't 'Completed' or 'Cancelled' yet
+            const current = orderRes.data.find(o => o.status !== 'Completed' && o.status !== 'Cancelled');
+            if (current) setActiveOrder(current);
+          }
+          setOrderLoading(false);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Status Color Helper
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'Pending': return 'bg-orange-100 text-orange-600 border-orange-200';
+      case 'Accepted': return 'bg-blue-100 text-blue-600 border-blue-200';
+      case 'Washing': return 'bg-purple-100 text-purple-600 border-purple-200';
+      case 'Completed': return 'bg-emerald-100 text-emerald-600 border-emerald-200';
+      default: return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
       
       {/* Hero Header */}
       <header className="relative h-[500px] bg-center bg-cover overflow-hidden" style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80")' }}>
@@ -68,7 +95,6 @@ const Home = () => {
             </p>
           </motion.div>
           
-          {/* Search Box */}
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, duration: 0.5 }}
             className="flex w-full max-w-2xl bg-white/10 backdrop-blur-md p-2 rounded-full shadow-2xl border border-white/20"
@@ -91,16 +117,105 @@ const Home = () => {
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-6 -mt-16 relative z-10 pb-20">
         
+        {/* 👇 --- ACTIVE ORDER TRACKER --- 👇 */}
+        <AnimatePresence>
+          {userInfo?.role === 'Student' && activeOrder && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl p-1 mb-8 overflow-hidden border border-blue-100"
+            >
+              <div className="flex flex-col md:flex-row items-center gap-6 p-6">
+                <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2872A1] shrink-0">
+                  <Clock className={`w-10 h-10 ${activeOrder.status === 'Washing' ? 'animate-spin-slow' : 'animate-pulse'}`} />
+                </div>
+                
+                <div className="flex-grow text-center md:text-left">
+                  <div className="flex flex-col md:flex-row md:items-center gap-2 mb-1">
+                    <h3 className="text-lg font-black text-gray-800 tracking-tight">Active Laundry Order</h3>
+                    <span className={`inline-block px-3 py-0.5 rounded-full text-[10px] font-bold border ${getStatusStyle(activeOrder.status)}`}>
+                      {activeOrder.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-gray-500 text-sm font-medium">
+                    Your <span className="text-gray-900 font-bold">{activeOrder.weightInKg}Kg</span> bag is being processed by <span className="text-[#2872A1] font-bold">{activeOrder.assignedPartner?.name || 'Partner'}</span>
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center md:items-end gap-2 shrink-0">
+                  <button 
+                    onClick={() => navigate('/student/my-orders')}
+                    className="px-6 py-3 bg-[#2872A1] text-white rounded-2xl font-bold text-sm hover:bg-[#1b4d6d] transition-all flex items-center gap-2 shadow-lg shadow-blue-200"
+                  >
+                    Track Live <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="h-1.5 w-full bg-gray-100 flex">
+                <div 
+                  className="h-full bg-[#2872A1] transition-all duration-1000" 
+                  style={{ 
+                    width: activeOrder.status === 'Pending' ? '25%' : 
+                           activeOrder.status === 'Accepted' ? '50%' : 
+                           activeOrder.status === 'Washing' ? '75%' : '100%' 
+                  }} 
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Quick Links */}
+        {userInfo?.role === 'Student' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12"
+          >
+            <div 
+              onClick={() => navigate('/student/laundry')}
+              className="bg-white p-6 rounded-3xl shadow-xl border-l-8 border-[#2872A1] flex items-center justify-between cursor-pointer hover:scale-[1.02] transition-all group"
+            >
+              <div className="flex items-center gap-5">
+                <div className="w-16 h-16 bg-[#CBDDE9]/40 rounded-2xl flex items-center justify-center text-[#2872A1] group-hover:bg-[#2872A1] group-hover:text-white transition-colors">
+                  <Shirt className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-gray-900">Request Laundry</h3>
+                  <p className="text-gray-500 text-sm font-medium">Wash, Dry & Iron services at your door</p>
+                </div>
+              </div>
+              <ArrowRight className="w-6 h-6 text-gray-300 group-hover:text-[#2872A1] group-hover:translate-x-2 transition-all" />
+            </div>
+
+            <div 
+              className="bg-white p-6 rounded-3xl shadow-xl border-l-8 border-orange-400 flex items-center justify-between cursor-pointer hover:scale-[1.02] transition-all group"
+            >
+              <div className="flex items-center gap-5">
+                <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                  <Wrench className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-gray-900">Repair Request</h3>
+                  <p className="text-gray-500 text-sm font-medium">Report room issues to our technicians</p>
+                </div>
+              </div>
+              <ArrowRight className="w-6 h-6 text-gray-300 group-hover:text-orange-500 group-hover:translate-x-2 transition-all" />
+            </div>
+          </motion.div>
+        )}
+
         {/* Rooms Section */}
         <div className="bg-white rounded-3xl shadow-xl shadow-[#CBDDE9]/20 p-8 md:p-12 mb-16 border border-[#CBDDE9]/40">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#2872A1] mb-4">Available Accommodations</h2>
-            <p className="text-gray-500 text-lg">Browse available rooms and book your stay instantly.</p>
+            <p className="text-gray-500 text-lg font-medium">Browse available rooms and book your stay instantly.</p>
           </div>
 
           {loading ? (
             <div className="flex justify-center items-center py-20">
-              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#2872A1]"></div>
+              <Loader2 className="animate-spin h-16 w-16 text-[#2872A1]" />
             </div>
           ) : (
             <motion.div 
@@ -111,27 +226,23 @@ const Home = () => {
             >
               {rooms.length > 0 ? rooms.map((room) => (
                 <motion.div key={room._id} variants={itemVariants} className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl hover:shadow-[#CBDDE9]/50 transition-all duration-300 border border-gray-100 flex flex-col group">
-                  
-                  {/* Card Image */}
                   <div className="relative h-56 overflow-hidden">
                     <img 
-                      src={room.image ? room.image : (roomPhotos[room.roomType?.toLowerCase()] || roomPhotos.default)} 
+                      src={room.image || (roomPhotos[room.roomType?.toLowerCase()] || roomPhotos.default)} 
                       alt={`Room ${room.roomNumber}`} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                      onError={(e) => { e.target.src = roomPhotos.default; }}
                     />
-                    <div className="absolute top-4 right-4 bg-[#2872A1]/90 backdrop-blur-sm text-white px-4 py-1.5 rounded-full font-bold shadow-md shadow-[#2872A1]/40 border border-white/20">
+                    <div className="absolute top-4 right-4 bg-[#2872A1]/90 backdrop-blur-sm text-white px-4 py-1.5 rounded-full font-bold shadow-md">
                       Rs. {room.monthlyRent}
                     </div>
                   </div>
                   
-                  {/* Card Body */}
                   <div className="p-6 flex flex-col flex-1">
                     <div className="flex justify-between items-start mb-3">
                       <div className="text-xs font-bold text-[#2872A1] tracking-wider uppercase bg-[#CBDDE9]/30 px-3 py-1.5 rounded-lg">
                         {room.roomType || 'Standard'} Room
                       </div>
-                      <div className="text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                      <div className="text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">
                         {room.designatedGender}
                       </div>
                     </div>
@@ -141,7 +252,6 @@ const Home = () => {
                       {room.description || "A comfortable and spacious room perfect for your stay."}
                     </p>
                     
-                    {/* Status Row */}
                     <div className="flex justify-between items-center text-sm font-medium text-gray-700 py-4 border-t border-gray-100 mb-6">
                       <div className="flex items-center text-gray-600">
                         <Users className="w-5 h-5 text-[#2872A1] mr-2" />
@@ -151,88 +261,42 @@ const Home = () => {
                         room.status === 'Available' ? 'text-emerald-600' : 
                         room.status === 'Full' ? 'text-red-500' : 'text-orange-500'
                       }`}>
-                        {room.status === 'Available' && <CheckCircle className="w-4 h-4 mr-1.5" />}
-                        {room.status === 'Full' && <XCircle className="w-4 h-4 mr-1.5" />}
-                        {room.status === 'Under Maintenance' && <AlertCircle className="w-4 h-4 mr-1.5" />}
                         {room.status}
                       </div>
                     </div>
 
-                    {/* Action Button */}
                     <button 
                       onClick={() => navigate(`/book/${room._id}`)} 
                       disabled={room.status !== 'Available'}
-                      className={`w-full py-3.5 rounded-xl font-bold transition-all flex justify-center items-center gap-2 ${
+                      className={`w-full py-3.5 rounded-xl font-bold transition-all ${
                         room.status === 'Available' 
-                          ? 'bg-[#2872A1] hover:bg-[#1f5a80] text-white shadow-md shadow-[#CBDDE9] hover:shadow-lg active:scale-95' 
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                          ? 'bg-[#2872A1] hover:bg-[#1f5a80] text-white shadow-lg' 
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       }`}
                     >
-                      {room.status === 'Available' ? 'Book This Room' : 'Currently Unavailable'}
+                      Book This Room
                     </button>
                   </div>
                 </motion.div>
               )) : (
-                <div className="col-span-full py-16 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-[#CBDDE9]">
-                  <BedDouble className="w-16 h-16 text-[#CBDDE9] mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-[#2872A1]">No Rooms Available</h3>
-                  <p className="text-gray-500 mt-2">Check back later or contact administration.</p>
+                <div className="col-span-full py-16 text-center">
+                  <h3 className="text-xl font-bold text-gray-400 text-center w-full">No Rooms Available</h3>
                 </div>
               )}
             </motion.div>
           )}
         </div>
-
-        {/* Partner Services Section - Hidden for Registered Students/Users */}
-        {!userInfo && (
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="mt-12"
-          >
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-[#2872A1] mb-4">Partner Services</h2>
-              <p className="text-gray-500 text-lg">Join our community as a service provider and grow your business.</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              
-              {/* Laundry Card */}
-              <div className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-xl transition-all border border-gray-100 hover:border-[#2872A1]/30 flex flex-col items-center text-center group">
-                <div className="w-20 h-20 rounded-2xl bg-[#CBDDE9]/30 text-[#2872A1] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-[#2872A1] group-hover:text-white transition-all duration-300">
-                  <Shirt className="w-10 h-10" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">Laundry Partner</h3>
-                <p className="text-gray-500 mb-8 flex-1 leading-relaxed">Provide washing, ironing, and delivery services to our student residents.</p>
-                <button onClick={() => navigate('/register/laundry')} className="w-full py-3 font-bold text-[#2872A1] bg-[#CBDDE9]/30 hover:bg-[#2872A1] hover:text-white rounded-xl transition-colors">Register as Laundry</button>
-              </div>
-
-              {/* Meal Supplier Card */}
-              <div className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-xl transition-all border border-gray-100 hover:border-[#1f5a80]/30 flex flex-col items-center text-center group">
-                <div className="w-20 h-20 rounded-2xl bg-[#CBDDE9]/30 text-[#1f5a80] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-[#1f5a80] group-hover:text-white transition-all duration-300">
-                  <Utensils className="w-10 h-10" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">Meal Supplier</h3>
-                <p className="text-gray-500 mb-8 flex-1 leading-relaxed">Supply nutritious daily meals, breakfast packages, and custom orders.</p>
-                <button onClick={() => navigate('/register/meal')} className="w-full py-3 font-bold text-[#1f5a80] bg-[#CBDDE9]/30 hover:bg-[#1f5a80] hover:text-white rounded-xl transition-colors">Register as Supplier</button>
-              </div>
-
-              {/* Maintainer Card */}
-              <div className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-xl transition-all border border-gray-100 hover:border-[#153e5c]/30 flex flex-col items-center text-center group">
-                <div className="w-20 h-20 rounded-2xl bg-[#CBDDE9]/30 text-[#153e5c] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-[#153e5c] group-hover:text-white transition-all duration-300">
-                  <Wrench className="w-10 h-10" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">Maintenance</h3>
-                <p className="text-gray-500 mb-8 flex-1 leading-relaxed">Join our technical team to resolve room issues and keep facilities perfect.</p>
-                <button onClick={() => navigate('/register/maintainer')} className="w-full py-3 font-bold text-[#153e5c] bg-[#CBDDE9]/30 hover:bg-[#153e5c] hover:text-white rounded-xl transition-colors">Register as Maintainer</button>
-              </div>
-
-            </div>
-          </motion.div>
-        )}
       </div>
+      
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 3s linear infinite;
+        }
+      `}} />
     </div>
   );
 };

@@ -1,19 +1,23 @@
 // 1. DNS Fix: Force Node.js to use Google/Cloudflare DNS to resolve MongoDB Atlas addresses
 const dns = require("node:dns/promises");
-dns.setServers(["8.8.8.8", "1.1.1.1"]); //
+dns.setServers(["8.8.8.8", "1.1.1.1"]); 
 
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const path = require('path'); // 👈 Path module eka add kala
 
 // Import Routes
-
 const authRoutes = require('./routes/authRoute'); 
 const roomRoutes = require('./routes/roomRoute');
 const bookingRoutes = require('./routes/bookingRoute'); 
 const chatbotRoutes = require('./routes/chatbotRoute');
 const paymentRoutes = require('./routes/paymentRoute');
+
+// 👇 --- Added for Laundry Feature (My Part) --- 👇
+const laundryRoutes = require('./routes/laundryRoute');
+// 👆 ------------------------------------------- 👆
 
 // Load environment variables from .env
 dotenv.config();
@@ -24,15 +28,19 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 👇 --- SERVE STATIC FILES (Image Show Fix) --- 👇
+// Meken thamai frontend/public folder eke thiyena images backend URL eken pennanna ida denne
+app.use(express.static(path.join(__dirname, '../frontend/public')));
+// 👆 ------------------------------------------- 👆
+
 // 2. Database Connection Logic
 const connectDB = async () => {
   try {
-    // Uses the MONGO_URI from your .env file
     const conn = await mongoose.connect(process.env.MONGO_URI);
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     console.error(`❌ Database Error: ${error.message}`);
-    process.exit(1); // Exit process if connection fails
+    process.exit(1); 
   }
 };
 
@@ -40,13 +48,15 @@ const connectDB = async () => {
 connectDB();
 
 // 3. API Routes 
-// This tells Express to send any requests starting with these paths to the correct route files
-
-app.use('/api/auth', authRoutes); // Added Auth Route Middleware
+app.use('/api/auth', authRoutes); 
 app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/chat', chatbotRoutes);
 app.use('/api/payment', paymentRoutes);
+
+// 👇 --- Added for Laundry Feature (My Part) --- 👇
+app.use('/api/laundry', laundryRoutes); 
+// 👆 ------------------------------------------- 👆
 
 // Basic Health Check Route
 app.get('/', (req, res) => {
