@@ -10,19 +10,22 @@ const roomSchema = mongoose.Schema({
   // 2. Features & Amenities
   airConditioning: { type: String, required: true },
   bathroomType: { type: String, required: true },
-  furnishing: [{ type: String }], // Array of strings (e.g., ["Bed", "Desk"])
+  furnishing: [{ type: String }], 
   hasBalcony: { type: Boolean, default: false },
 
   // 3. Pricing & Booking Rules
   monthlyRent: { type: Number, required: true },
   keyMoney: { type: Number, required: true },
   maxCapacity: { type: Number, required: true },
+  
+  // NEW: Track how many students are actually in the room!
+  currentOccupancy: { type: Number, default: 0 },
 
   // 4. Visuals & Extras
   description: { type: String },
-  image: { type: String }, // Will store the file path like '/roomImage/photo.jpg'
+  image: { type: String }, 
   status: { type: String, default: 'Available' },
-  display: { type: Boolean, default: true }, // Show or hide from students
+  display: { type: Boolean, default: true }, 
 }, { timestamps: true });
 
 module.exports = mongoose.model('Room', roomSchema);
