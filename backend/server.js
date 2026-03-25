@@ -9,10 +9,15 @@ const mongoose = require('mongoose');
 const cron = require('node-cron'); // <--- NEW: Import Cron for automation
 const Booking = require('./models/bookingModel'); // <--- NEW: Need this to update rent status
 
+// --- Import Routes ---
 // Import Routes
 const authRoutes = require('./routes/authRoute'); 
 const roomRoutes = require('./routes/roomRoute');
 const bookingRoutes = require('./routes/bookingRoute'); 
+
+// Added for Maintenance Feature (My Part)
+const maintenanceRoutes = require('./routes/maintenanceRoute'); 
+// -------------------------------------
 const chatbotRoutes = require('./routes/chatbotRoute');
 const paymentRoutes = require('./routes/paymentRoute');
 const invoiceRoutes = require('./routes/invoiceRoute');
@@ -40,6 +45,9 @@ const connectDB = async () => {
 // Execute Connection
 connectDB();
 
+// 3. API Routes 
+// This tells Express to send any requests starting with these paths to the correct route files
+app.use('/api/auth', authRoutes); 
 // ======================================================
 // 3. AUTOMATION: THE MONTHLY RENT TIMER (CRON JOB)
 // ======================================================
@@ -61,6 +69,10 @@ cron.schedule('0 0 25 * *', async () => {
 app.use('/api/auth', authRoutes); 
 app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
+
+// Added for Maintenance Feature (My Part)
+app.use('/api/maintenance', maintenanceRoutes); 
+// ---------------------------------------
 app.use('/api/chat', chatbotRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/invoices', invoiceRoutes);
