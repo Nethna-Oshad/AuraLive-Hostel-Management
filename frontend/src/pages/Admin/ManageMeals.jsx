@@ -65,14 +65,72 @@ const ManageMeals = () => {
     fetchUsers();
   };
 
+  // Helper function to check if times overlap
+  const checkTimeOverlap = (newTimeRange, excludeId = '') => {
+    const parseTimeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.trim().split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    try {
+      const [newStartStr, newEndStr] = newTimeRange.split('-');
+      const newStart = parseTimeToMinutes(newStartStr);
+      const newEnd = parseTimeToMinutes(newEndStr);
+
+      if (newStart >= newEnd) {
+        return 'Start time must be strictly before end time.';
+      }
+
+      for (const slot of slots) {
+        // Skip checking against itself if we are editing
+        if (excludeId && slot._id === excludeId) continue;
+        
+        const [existingStartStr, existingEndStr] = slot.timeRange.split('-');
+        const existingStart = parseTimeToMinutes(existingStartStr);
+        const existingEnd = parseTimeToMinutes(existingEndStr);
+
+        // Overlap logic: Start A < End B AND Start B < End A
+        if (newStart < existingEnd && existingStart < newEnd) {
+          return `Time overlaps with existing slot: ${slot.label} (${slot.timeRange})`;
+        }
+      }
+      return null; // No overlap found
+    } catch (err) {
+      return 'Invalid time format.';
+    }
+  };
+
   const handleSaveSlot = async (e) => {
     e.preventDefault();
+
+    // 1. Validate Slot Label (Only letters and spaces)
+    const labelRegex = /^[a-zA-Z\s]+$/;
+    if (!labelRegex.test(slotForm.label)) {
+      toast.error('Slot label should only contain letters and spaces (no numbers).');
+      return;
+    }
+
+    // 2. Validate Time Range format (e.g., 19:00 - 20:00)
+    const timeRangeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]\s*-\s*([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRangeRegex.test(slotForm.timeRange)) {
+      toast.error('Time range must be in HH:MM - HH:MM format (e.g., 19:00 - 20:00).');
+      return;
+    }
+
+    // 3. Validate Overlaps and Logical Ordering
+    const overlapError = checkTimeOverlap(slotForm.timeRange, editingSlotId);
+    if (overlapError) {
+      toast.error(overlapError);
+      return;
+    }
+
     try {
       const payload = {
         label: slotForm.label,
         timeRange: slotForm.timeRange,
         capacity: Number(slotForm.capacity),
       };
+      
       if (editingSlotId) {
         await fetch(`http://localhost:5000/api/meals/admin/slots/${editingSlotId}`, {
           method: 'PUT',
@@ -213,6 +271,8 @@ const ManageMeals = () => {
                   placeholder="Slot label (e.g., Dinner Prep)"
                   required
                   className="p-3 rounded-xl border border-gray-200 bg-gray-50"
+                  pattern="[a-zA-Z\s]+"
+                  title="Only letters and spaces are allowed"
                 />
                 <input
                   type="text"
@@ -221,6 +281,7 @@ const ManageMeals = () => {
                   placeholder="Time range (e.g., 19:00 - 20:00)"
                   required
                   className="p-3 rounded-xl border border-gray-200 bg-gray-50"
+                  title="Format: HH:MM - HH:MM (e.g., 19:00 - 20:00)"
                 />
                 <input
                   type="number"
