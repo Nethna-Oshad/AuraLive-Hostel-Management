@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Clock3, ChefHat, UtensilsCrossed, CalendarDays, CheckCircle2, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock3, ChefHat, Store, UtensilsCrossed, CalendarDays, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -317,18 +317,90 @@ const MealDashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My Kitchen Bookings
+        {(allFull || shops.length > 0) && (
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <Store className="w-6 h-6 text-orange-500" /> 3rd Party Meal Shops
             </h2>
-            {studentBookings.length > 3 && (
-              <span className="text-sm font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                Total: {studentBookings.length}
-              </span>
-            )}
-          </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {shops.map((shop) => (
+                <div key={shop.name} className="border border-orange-100 bg-orange-50/50 rounded-2xl p-4">
+                  <h3 className="font-bold text-gray-800">{shop.name}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{shop.cuisine}</p>
+                  <p className="text-xs font-semibold text-orange-600 mt-2">ETA: {shop.eta}</p>
+                  <p className="text-xs font-bold text-gray-700 mt-1">From Rs. {shop.basePrice}</p>
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={handleExternalOrder} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <select
+                id="external-shop"
+                name="shopName"
+                value={externalForm.shopName}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, shopName: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+                required
+              >
+                <option value="">Select Meal Shop</option>
+                {shops.map((shop) => (
+                  <option key={shop.name} value={shop.name}>
+                    {shop.name} (Rs. {shop.basePrice})
+                  </option>
+                ))}
+              </select>
+
+              <input
+                id="external-menu-item"
+                name="menuItem"
+                type="text"
+                placeholder="Meal item (e.g., Chicken Kottu)"
+                value={externalForm.menuItem}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, menuItem: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+                required
+              />
+
+              <select
+                id="external-slot"
+                name="slotId"
+                value={externalForm.slotId}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, slotId: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+              >
+                <option value="">Optional preferred slot window</option>
+                {slots.map((slot) => (
+                  <option key={slot.id} value={slot.id}>
+                    {slot.label} ({slot.timeRange})
+                  </option>
+                ))}
+              </select>
+
+              <input
+                id="external-notes"
+                name="notes"
+                type="text"
+                placeholder="Notes (optional)"
+                value={externalForm.notes}
+                onChange={(e) => setExternalForm((prev) => ({ ...prev, notes: e.target.value }))}
+                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
+              />
+
+              <button
+                type="submit"
+                className="md:col-span-2 py-3 rounded-xl font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+              >
+                Place External Meal Order
+              </button>
+            </form>
+          </div>
+        )}
+
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My Meal Bookings
+          </h2>
           {studentBookings.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
               <p className="text-gray-500">No kitchen bookings yet. Start by selecting a kitchen slot above.</p>
@@ -357,13 +429,7 @@ const MealDashboard = () => {
                     {booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => openReschedule(booking._id)}
-                        disabled={booking.bookingDate < todayDate}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
-                          booking.bookingDate < todayDate
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                        }`}
-                        title={booking.bookingDate < todayDate ? 'Cannot reschedule past bookings' : ''}
+                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200"
                       >
                         Reschedule
                       </button>
@@ -371,13 +437,7 @@ const MealDashboard = () => {
                     {booking.status !== 'Cancelled' && (
                       <button
                         onClick={() => handleCancelBooking(booking._id)}
-                        disabled={booking.bookingDate < todayDate}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
-                          booking.bookingDate < todayDate
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-red-100 text-red-700 hover:bg-red-200'
-                        }`}
-                        title={booking.bookingDate < todayDate ? 'Cannot cancel past bookings' : ''}
+                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200"
                       >
                         Cancel
                       </button>
