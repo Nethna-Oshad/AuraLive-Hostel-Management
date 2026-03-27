@@ -9,6 +9,10 @@ const invoiceSchema = mongoose.Schema({
   // What are they paying for?
   roomNumber: { type: String, required: true },
   description: { type: String, required: true },
+  
+  // NEW: Store the exact month this payment is for (e.g., "March 2026")
+  monthName: { type: String }, 
+  
   amount: { type: Number, required: true },
   
   // Payment Status
