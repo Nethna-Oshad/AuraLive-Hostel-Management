@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+// FIXED: Added AlertCircle to the import
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -9,7 +10,7 @@ const Login = () => {
   const [stats, setStats] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch stats when the page loads (SAFE - empty array [] makes it run only once)
+  // Fetch stats when the page loads
   useEffect(() => {
     let isMounted = true;
     
@@ -69,7 +70,8 @@ const Login = () => {
         </div>
         <h3 className="text-white font-bold tracking-wide">{title}</h3>
       </div>
-      {dataCount !== undefined && dataCount !== null ? (
+      {/* FIXED: Changed dataCount to data */}
+      {data ? (
         <div className="flex justify-between items-end">
           <div>
             <p className="text-gray-300 text-[10px] uppercase tracking-widest font-extrabold mb-1">Total</p>
@@ -80,7 +82,7 @@ const Login = () => {
               {data.active} Active
             </span>
             <span className="bg-orange-500/20 text-orange-100 border border-orange-400/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
-              {data.inactive} Pending
+              {data.inactive || data.pending} Pending
             </span>
           </div>
         </div>
