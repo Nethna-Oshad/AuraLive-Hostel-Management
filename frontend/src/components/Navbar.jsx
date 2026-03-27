@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, LogIn, UserPlus, LogOut, User, UtensilsCrossed } from 'lucide-react';
+import { Home, LogIn, UserPlus, LogOut, UtensilsCrossed } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -61,31 +61,18 @@ const Navbar = () => {
         {/* Right Side: Auth Buttons & Profile */}
         <div className="flex items-center z-10">
           {userInfo ? (
-            <div className="flex items-center space-x-5">
+            <div className="flex items-center space-x-3 md:space-x-5">
               
-              {/* NEW: Profile Button (Only visible to Students) */}
+              {/* Meals Link (Only visible to Students) */}
               {userInfo.role === 'Student' && (
-                <>
-                  <Link to="/student/meals" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
-                    <UtensilsCrossed className="w-4 h-4" />
-                    Meals
-                  </Link>
-                  <Link to="/profile" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
-                    <User className="w-4 h-4" />
-                    Profile
-                  </Link>
-                </>
+                <Link to="/student/meals" className="hidden sm:flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1] pr-2 border-r border-gray-200">
+                  <UtensilsCrossed className="w-4 h-4" />
+                  Meals
+                </Link>
               )}
 
-              {/* User Badge */}
-              <div className="flex items-center gap-2 bg-[#CBDDE9]/20 px-4 py-1.5 rounded-full border border-[#CBDDE9]/50">
-                <span className="text-gray-600">
-                  Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
-                </span>
-              </div>
-              
-              {/* CREATIVE PROFILE BADGE */}
-              {userInfo.role === 'Student' && (
+              {/* CREATIVE PROFILE BADGE (Clickable) */}
+              {userInfo.role === 'Student' ? (
                 <Link 
                   to="/profile" 
                   className="flex items-center gap-3 p-1 pr-4 bg-gray-50 border border-transparent hover:border-gray-200 rounded-full transition-all duration-300 hover:shadow-sm group"
@@ -98,16 +85,26 @@ const Navbar = () => {
                       userInfo.name.charAt(0).toUpperCase()
                     )}
                   </div>
+                  <span className="hidden sm:block text-sm text-gray-500 font-medium">
+                    Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
+                  </span>
                 </Link>
+              ) : (
+                <div className="hidden sm:flex items-center gap-2 bg-[#CBDDE9]/20 px-4 py-1.5 rounded-full border border-[#CBDDE9]/50">
+                  <span className="text-gray-600">
+                    Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
+                  </span>
+                </div>
               )}
               
               {/* Logout Button */}
               <button 
                 onClick={handleLogout} 
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-red-500 transition-all duration-200 bg-red-50 rounded-xl hover:bg-red-500 hover:text-white hover:shadow-md hover:-translate-y-0.5"
+                className="flex items-center gap-1.5 px-3 py-2 md:px-4 text-sm font-bold text-red-500 transition-all duration-200 bg-red-50 rounded-xl hover:bg-red-500 hover:text-white hover:shadow-md hover:-translate-y-0.5"
+                title="Logout"
               >
                 <LogOut className="w-4 h-4" />
-                Logout
+                <span className="hidden sm:block">Logout</span>
               </button>
             </div>
           ) : (
