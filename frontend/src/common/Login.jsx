@@ -9,20 +9,24 @@ const Login = () => {
   const [stats, setStats] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch stats when the page loads
+  // Fetch stats when the page loads (SAFE - empty array [] makes it run only once)
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchStats = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/auth/stats');
         if (response.ok) {
           const data = await response.json();
-          setStats(data);
+          if (isMounted) setStats(data);
         }
       } catch (err) {
         console.error("Failed to fetch system stats", err);
       }
     };
+    
     fetchStats();
+    return () => { isMounted = false; };
   }, []);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -65,7 +69,7 @@ const Login = () => {
         </div>
         <h3 className="text-white font-bold tracking-wide">{title}</h3>
       </div>
-      {data ? (
+      {dataCount !== undefined && dataCount !== null ? (
         <div className="flex justify-between items-end">
           <div>
             <p className="text-gray-300 text-[10px] uppercase tracking-widest font-extrabold mb-1">Total</p>

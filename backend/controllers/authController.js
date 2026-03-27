@@ -105,7 +105,28 @@ const updateUserStatus = async (req, res) => {
   }
 };
 
+// ========================
+// DASHBOARD STATS LOGIC
+// ========================
+const getStats = async (req, res) => {
+  try {
+    const studentCount = await Student.countDocuments();
+    const laundryCount = await Laundry.countDocuments();
+    const maintainerCount = await Maintainer.countDocuments();
+    const mealCount = await MealSupplier.countDocuments();
+
+    res.status(200).json({
+      students: studentCount,
+      laundryPartners: laundryCount,
+      maintainers: maintainerCount,
+      mealSuppliers: mealCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch stats", error: error.message });
+  }
+};
+
 module.exports = { 
   loginUser, registerStudent, registerAdmin, registerLaundry, registerMaintainer, registerMealSupplier,
-  getAllStudents, getAllLaundry, getAllMaintainers, getAllMeals, updateUserStatus
+  getAllStudents, getAllLaundry, getAllMaintainers, getAllMeals, updateUserStatus, getStats
 };

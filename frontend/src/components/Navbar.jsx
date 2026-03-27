@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, LogIn, UserPlus, LogOut, UtensilsCrossed } from 'lucide-react';
+// Fixed: Added UtensilsCrossed to the import list!
+import { Home, LogIn, UserPlus, LogOut, User, ShoppingBag, UtensilsCrossed } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -63,12 +64,18 @@ const Navbar = () => {
           {userInfo ? (
             <div className="flex items-center space-x-3 md:space-x-5">
               
-              {/* Meals Link (Only visible to Students) */}
+              {/* Extra Links (Only visible to Students) */}
               {userInfo.role === 'Student' && (
-                <Link to="/student/meals" className="hidden sm:flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1] pr-2 border-r border-gray-200">
-                  <UtensilsCrossed className="w-4 h-4" />
-                  Meals
-                </Link>
+                <div className="hidden sm:flex items-center gap-4 pr-3 border-r border-gray-200">
+                  <Link to="/student/meals" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <UtensilsCrossed className="w-4 h-4" />
+                    Meals
+                  </Link>
+                  <Link to="/student/my-orders" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <ShoppingBag className="w-4 h-4" />
+                    Orders
+                  </Link>
+                </div>
               )}
 
               {/* CREATIVE PROFILE BADGE (Clickable) */}

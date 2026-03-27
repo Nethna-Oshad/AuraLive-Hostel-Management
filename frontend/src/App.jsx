@@ -30,6 +30,9 @@ import MaintainersRegistration from './pages/Maintainers/MaintainersRegistation'
 
 // Partner Dashboard Component Imports
 import LaundryDashboard from './pages/Laundry/LaundryDashboard';
+import ManageOrders from './pages/Laundry/ManageOrders'; 
+import OrderHistory from './pages/Laundry/OrderHistory';
+import LaundrySettings from './pages/Laundry/LaundrySettings'; // 👈 NEW IMPORT ADDED HERE
 import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
 import MaintainerTasks from './pages/Maintainers/MaintainerTasks'; 
 import MaintainerHistory from './pages/Maintainers/MaintainerHistory'; 
@@ -43,6 +46,11 @@ import Profile from './pages/Student/Profile';
 import StudentMealDashboard from './pages/Student/MealDashboard';
 import ThirdPartyMealDashboard from './pages/Student/ThirdPartyMealDashboard';
 import StudentMaintenance from './pages/Student/StudentMaintenance';
+
+// 👇 --- Student Laundry & Orders --- 👇
+import StudentLaundry from './pages/Student/StudentLaundry';
+import MyLaundryOrders from './pages/Student/MyLaundryOrders'; 
+// 👆 --------------------------------- 👆
 
 // Chatbot Component Import
 import Chatbot from './components/Chatbot';
@@ -73,11 +81,6 @@ const StudentLayout = ({ children }) => {
     </div>
   );
 };
-
-// Layout wrapper for pages without Navbar/Footer (like Login)
-const AuthLayout = ({ children }) => (
-  <main className="min-h-screen bg-gray-50">{children}</main>
-);
 
 function App() {
   return (
@@ -111,6 +114,9 @@ function App() {
 
         {/* === Partner Dashboard Routes === */}
         <Route path="/laundry/dashboard" element={<LaundryDashboard />} />
+        <Route path="/laundry/orders" element={<ManageOrders />} />
+        <Route path="/laundry/history" element={<OrderHistory />} /> 
+        <Route path="/laundry/settings" element={<LaundrySettings />} /> {/* 👈 NEW ROUTE ADDED HERE */}
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
         <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> 
         <Route path="/maintainer/completed" element={<MaintainerHistory />} /> 
@@ -125,7 +131,12 @@ function App() {
         <Route path="/register" element={<StudentLayout><Register /></StudentLayout>} />
         <Route path="/student/maintenance" element={<StudentLayout><StudentMaintenance /></StudentLayout>} />
         
-        {/* === Partner Registration Routes (Using StudentLayout) === */}
+        {/* 👇 --- Student Laundry & My Orders --- 👇 */}
+        <Route path="/student/laundry" element={<StudentLayout><StudentLaundry /></StudentLayout>} />
+        <Route path="/student/my-orders" element={<StudentLayout><MyLaundryOrders /></StudentLayout>} />
+        {/* 👆 ------------------------------------ 👆 */}
+        
+        {/* === Partner Registration Routes === */}
         <Route path="/register/laundry" element={<StudentLayout><LaundryRegistration /></StudentLayout>} />
         <Route path="/register/meal" element={<StudentLayout><MealSupplierRegistration /></StudentLayout>} />
         <Route path="/register/maintainer" element={<StudentLayout><MaintainersRegistration /></StudentLayout>} />

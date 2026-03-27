@@ -11,6 +11,8 @@ const Home = () => {
   const [rooms, setRooms] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [orderLoading, setOrderLoading] = useState(false);
   const navigate = useNavigate();
   
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
@@ -56,6 +58,46 @@ const Home = () => {
   const itemVariants = {
     hidden: { opacity: 0, y: 30 },
     show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 15 } }
+  };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch Rooms
+        const roomRes = await axios.get('http://localhost:5000/api/rooms');
+        const visibleRooms = roomRes.data.filter(room => room.display === true);
+        setRooms(visibleRooms);
+
+        // Fetch Latest Laundry Order if student is logged in
+        if (userInfo?._id && userInfo?.role === 'Student') {
+          setOrderLoading(true);
+          const orderRes = await axios.get(`http://localhost:5000/api/laundry/student/${userInfo._id}`);
+          if (orderRes.data && orderRes.data.length > 0) {
+            // Get the most recent order that isn't 'Completed' or 'Cancelled' yet
+            const current = orderRes.data.find(o => o.status !== 'Completed' && o.status !== 'Cancelled');
+            if (current) setActiveOrder(current);
+          }
+          setOrderLoading(false);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Status Color Helper
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'Pending': return 'bg-orange-100 text-orange-600 border-orange-200';
+      case 'Accepted': return 'bg-blue-100 text-blue-600 border-blue-200';
+      case 'Washing': return 'bg-purple-100 text-purple-600 border-purple-200';
+      case 'Completed': return 'bg-emerald-100 text-emerald-600 border-emerald-200';
+      default: return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
   };
 
   return (
@@ -174,7 +216,7 @@ const Home = () => {
                   {/* Image Header */}
                   <div className="relative h-64 overflow-hidden">
                     <img 
-                      src={room.image ? room.image : (roomPhotos[room.roomType?.toLowerCase()] || roomPhotos.default)} 
+                      src={room.image || (roomPhotos[room.roomType?.toLowerCase()] || roomPhotos.default)} 
                       alt={`Room ${room.roomNumber}`} 
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                       onError={(e) => { e.target.src = roomPhotos.default; }}
@@ -238,7 +280,6 @@ const Home = () => {
                       </div>
                     </div>
 
-                    {/* Action Button */}
                     <button 
                       onClick={() => navigate(`/book/${room._id}`)} 
                       disabled={!canBook}
