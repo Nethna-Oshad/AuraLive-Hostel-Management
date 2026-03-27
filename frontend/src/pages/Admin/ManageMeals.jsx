@@ -1,22 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import AdminSidebar from './AdminSidebar';
 import AdminNavbar from './AdminNavbar';
 import toast from 'react-hot-toast';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const ManageMeals = () => {
   const [users, setUsers] = useState([]);
   const [slots, setSlots] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [summary, setSummary] = useState({
-    totalOrdersToday: 0,
-    pendingDeliveries: 0,
-    deliveredCount: 0,
-    unpaidExternalOrders: 0,
-  });
   const [orderFilters, setOrderFilters] = useState({
     date: '',
-    shop: '',
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAllOrders, setShowAllOrders] = useState(false);
   const [slotForm, setSlotForm] = useState({ label: '', timeRange: '', capacity: 4 });
   const [editingSlotId, setEditingSlotId] = useState('');
 
@@ -24,7 +20,6 @@ const ManageMeals = () => {
     fetchUsers();
     fetchSlots();
     fetchOrders();
-    fetchSummary();
   }, []);
 
   const fetchUsers = async () => {
@@ -40,19 +35,17 @@ const ManageMeals = () => {
   const buildOrderQuery = () => {
     const params = new URLSearchParams();
     if (orderFilters.date) params.append('date', orderFilters.date);
-    if (orderFilters.shop) params.append('shop', orderFilters.shop);
     return params.toString();
   };
 
   const fetchOrders = async () => {
     const query = buildOrderQuery();
     const res = await fetch(`http://localhost:5000/api/meals/admin/orders${query ? `?${query}` : ''}`);
-    setOrders(await res.json());
-  };
-
-  const fetchSummary = async () => {
-    const res = await fetch('http://localhost:5000/api/meals/admin/orders-summary');
-    setSummary(await res.json());
+    const data = await res.json();
+    
+    // FILTER: Only keep Kitchen slot bookings
+    const kitchenBookings = data.filter((order) => order.type === 'Kitchen');
+    setOrders(kitchenBookings);
   };
 
   const toggleStatus = async (id, currentStatus) => {
@@ -82,7 +75,6 @@ const ManageMeals = () => {
       }
 
       for (const slot of slots) {
-        // Skip checking against itself if we are editing
         if (excludeId && slot._id === excludeId) continue;
         
         const [existingStartStr, existingEndStr] = slot.timeRange.split('-');
@@ -94,7 +86,7 @@ const ManageMeals = () => {
           return `Time overlaps with existing slot: ${slot.label} (${slot.timeRange})`;
         }
       }
-      return null; // No overlap found
+      return null;
     } catch (err) {
       return 'Invalid time format.';
     }
@@ -103,21 +95,18 @@ const ManageMeals = () => {
   const handleSaveSlot = async (e) => {
     e.preventDefault();
 
-    // 1. Validate Slot Label (Only letters and spaces)
     const labelRegex = /^[a-zA-Z\s]+$/;
     if (!labelRegex.test(slotForm.label)) {
       toast.error('Slot label should only contain letters and spaces (no numbers).');
       return;
     }
 
-    // 2. Validate Time Range format (e.g., 19:00 - 20:00)
     const timeRangeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]\s*-\s*([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRangeRegex.test(slotForm.timeRange)) {
       toast.error('Time range must be in HH:MM - HH:MM format (e.g., 19:00 - 20:00).');
       return;
     }
 
-    // 3. Validate Overlaps and Logical Ordering
     const overlapError = checkTimeOverlap(slotForm.timeRange, editingSlotId);
     if (overlapError) {
       toast.error(overlapError);
@@ -183,21 +172,6 @@ const ManageMeals = () => {
     }
   };
 
-  const handleDeliveryStatusChange = async (orderId, deliveryStatus) => {
-    try {
-      await fetch(`http://localhost:5000/api/meals/admin/orders/${orderId}/delivery-status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deliveryStatus }),
-      });
-      toast.success('Delivery status updated.');
-      fetchOrders();
-      fetchSummary();
-    } catch (error) {
-      toast.error('Failed to update delivery status.');
-    }
-  };
-
   const handleExportOrders = async () => {
     try {
       const query = buildOrderQuery();
@@ -207,16 +181,62 @@ const ManageMeals = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `meal-orders-${Date.now()}.csv`);
+      link.setAttribute('download', `kitchen-bookings-${Date.now()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      toast.success('Meal orders exported.');
+      toast.success('Kitchen bookings exported.');
     } catch (error) {
-      toast.error('Failed to export orders.');
+      toast.error('Failed to export bookings.');
     }
   };
+
+  // Calculate overview metrics for the top cards
+  const kitchenSummary = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    let total = orders.length;
+    let currentMonthCount = 0;
+    let confirmed = 0;
+    let cancelled = 0;
+
+    orders.forEach((order) => {
+      if (order.status === 'Cancelled') {
+        cancelled++;
+      } else {
+        confirmed++;
+      }
+
+      if (order.bookingDate) {
+        const bookingD = new Date(order.bookingDate);
+        if (bookingD.getMonth() === currentMonth && bookingD.getFullYear() === currentYear) {
+          currentMonthCount++;
+        }
+      }
+    });
+
+    return { total, currentMonthCount, confirmed, cancelled };
+  }, [orders]);
+
+  // Filter orders based on the search term
+  const displayedOrders = orders.filter((order) => {
+    const term = searchTerm.toLowerCase();
+    const studentName = (order.studentName || '').toLowerCase();
+    const slotLabel = (order.slotLabel || '').toLowerCase();
+    const status = (order.status || 'Active').toLowerCase();
+
+    return (
+      studentName.includes(term) ||
+      slotLabel.includes(term) ||
+      status.includes(term)
+    );
+  });
+
+  // Slice orders for pagination/toggle
+  const paginatedOrders = showAllOrders ? displayedOrders : displayedOrders.slice(0, 3);
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -340,53 +360,52 @@ const ManageMeals = () => {
           </div>
 
           <div className="mt-10">
-            <h2 className="text-2xl font-semibold mb-6 text-gray-800">Student Meal Orders</h2>
+            <h2 className="text-2xl font-semibold mb-6 text-gray-800">Student Kitchen Bookings</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
               <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Total Orders Today</p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-2">{summary.totalOrdersToday}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Total Slot Bookings</p>
+                <p className="text-3xl font-extrabold text-gray-900 mt-2">{kitchenSummary.total}</p>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Pending Deliveries</p>
-                <p className="text-3xl font-extrabold text-orange-600 mt-2">{summary.pendingDeliveries}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Current Month</p>
+                <p className="text-3xl font-extrabold text-[#2872A1] mt-2">{kitchenSummary.currentMonthCount}</p>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Delivered Count</p>
-                <p className="text-3xl font-extrabold text-emerald-600 mt-2">{summary.deliveredCount}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Confirmed Bookings</p>
+                <p className="text-3xl font-extrabold text-emerald-600 mt-2">{kitchenSummary.confirmed}</p>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Unpaid External Orders</p>
-                <p className="text-3xl font-extrabold text-red-600 mt-2">{summary.unpaidExternalOrders}</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Cancelled Bookings</p>
+                <p className="text-3xl font-extrabold text-red-600 mt-2">{kitchenSummary.cancelled}</p>
               </div>
             </div>
+            
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="flex flex-col md:flex-row gap-3">
                 <input
                   id="filter-order-date"
                   name="filterOrderDate"
                   type="date"
                   value={orderFilters.date}
-                  onChange={(e) => setOrderFilters((prev) => ({ ...prev, date: e.target.value }))}
-                  className="p-3 rounded-xl border border-gray-200 bg-gray-50"
+                  onChange={(e) => setOrderFilters({ date: e.target.value })}
+                  className="p-3 rounded-xl border border-gray-200 bg-gray-50 w-full md:max-w-xs"
                 />
                 <input
-                  id="filter-order-shop"
-                  name="filterOrderShop"
                   type="text"
-                  value={orderFilters.shop}
-                  onChange={(e) => setOrderFilters((prev) => ({ ...prev, shop: e.target.value }))}
-                  placeholder="Filter by external shop name"
-                  className="p-3 rounded-xl border border-gray-200 bg-gray-50"
+                  placeholder="Search by student, slot, or status..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="p-3 rounded-xl border border-gray-200 bg-gray-50 w-full md:max-w-sm"
                 />
                 <button
                   onClick={fetchOrders}
-                  className="rounded-xl bg-[#2872A1] text-white font-bold hover:bg-[#1f5a80]"
+                  className="px-6 py-3 rounded-xl bg-[#2872A1] text-white font-bold hover:bg-[#1f5a80]"
                 >
-                  Apply Filters
+                  Apply Date Filter
                 </button>
                 <button
                   onClick={handleExportOrders}
-                  className="rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                  className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 md:ml-auto"
                 >
                   Export CSV
                 </button>
@@ -399,67 +418,60 @@ const ManageMeals = () => {
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-sm">
                       <th className="p-4 font-medium">Student</th>
-                      <th className="p-4 font-medium">Date & Slot</th>
-                      <th className="p-4 font-medium">Order</th>
-                      <th className="p-4 font-medium">Payment</th>
-                      <th className="p-4 font-medium">Delivery Status</th>
+                      <th className="p-4 font-medium">Date</th>
+                      <th className="p-4 font-medium">Slot</th>
+                      <th className="p-4 font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-sm">
-                    {orders.map((order) => (
+                    {paginatedOrders.map((order) => (
                       <tr key={order._id} className="hover:bg-gray-50">
                         <td className="p-4">
                           <p className="font-bold text-gray-800">{order.studentName}</p>
                           <p className="text-xs text-gray-500">{order.studentEmail}</p>
                         </td>
+                        <td className="p-4 text-gray-800 font-semibold">
+                          {order.bookingDate}
+                        </td>
                         <td className="p-4 text-gray-600">
-                          <p>{order.bookingDate}</p>
-                          <p className="text-xs">{order.slotLabel}</p>
-                        </td>
-                        <td className="p-4 text-gray-700">
-                          {order.type === 'External' ? (
-                            <>
-                              <p className="font-semibold">{order.externalShopName}</p>
-                              <p className="text-xs text-gray-500">{order.externalMenuItem}</p>
-                            </>
-                          ) : (
-                            <span className="text-xs font-bold px-2 py-1 rounded-full bg-[#CBDDE9]/30 text-[#2872A1]">Kitchen Booking</span>
-                          )}
+                          {order.slotLabel}
                         </td>
                         <td className="p-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            order.paymentStatus === 'Paid'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-orange-100 text-orange-700'
+                          <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
+                            order.status === 'Cancelled'
+                              ? 'text-red-600 bg-red-50 border-red-100'
+                              : 'text-emerald-600 bg-emerald-50 border-emerald-100'
                           }`}>
-                            {order.paymentStatus}
+                            {order.status || 'Active'}
                           </span>
-                          {order.type === 'External' && (
-                            <p className="text-xs text-gray-500 mt-1">Rs. {order.externalAmount || 0}</p>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          <select
-                            id={`delivery-status-${order._id}`}
-                            name={`deliveryStatus-${order._id}`}
-                            value={order.deliveryStatus || 'Pending'}
-                            onChange={(e) => handleDeliveryStatusChange(order._id, e.target.value)}
-                            className="p-2 rounded-lg border border-gray-200 bg-white text-xs font-semibold"
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Preparing">Preparing</option>
-                            <option value="Out for Delivery">Out for Delivery</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {orders.length === 0 && (
-                <div className="p-8 text-center text-gray-500">No meal orders match current filters.</div>
+
+              {displayedOrders.length > 3 && (
+                <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50/50">
+                  <button
+                    onClick={() => setShowAllOrders(!showAllOrders)}
+                    className="flex items-center gap-1.5 text-sm font-bold text-[#2872A1] hover:text-[#1f5a80] transition-colors py-2 px-4 rounded-full bg-blue-50 hover:bg-blue-100"
+                  >
+                    {showAllOrders ? (
+                      <>
+                        Show Less <ChevronUp className="w-4 h-4" />
+                      </>
+                    ) : (
+                      <>
+                        View All {displayedOrders.length} Bookings <ChevronDown className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {displayedOrders.length === 0 && (
+                <div className="p-8 text-center text-gray-500">No kitchen bookings match your search or filters.</div>
               )}
             </div>
           </div>

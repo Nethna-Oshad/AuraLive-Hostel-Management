@@ -7,50 +7,33 @@ const MealDashboard = () => {
   const userInfo = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('userInfo'));
-    } catch (error) {
+    } catch {
       return null;
     }
   }, []);
 
   const [dateFilter, setDateFilter] = useState('');
   const [orders, setOrders] = useState([]);
-  const [summary, setSummary] = useState({
-    todayOrders: 0,
-    pendingOrders: 0,
-    deliveredOrders: 0,
-    revenueToday: 0,
-    unpaidOrders: 0,
-  });
   const [loading, setLoading] = useState(true);
+
+  const normalize = (value) => String(value || '').trim().toLowerCase();
 
   const fetchOrders = async () => {
     try {
       const params = new URLSearchParams();
-      params.append('shop', userInfo?.name || '');
       if (dateFilter) params.append('date', dateFilter);
       const response = await fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`);
       const data = await response.json();
-      setOrders(Array.isArray(data) ? data : []);
-    } catch (error) {
-      toast.error('Failed to load supplier orders.');
-    }
-  };
-
-  const fetchSummary = async () => {
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/meals/supplier/summary?supplierName=${encodeURIComponent(userInfo?.name || '')}`
+      const externalOrders = Array.isArray(data) ? data.filter((order) => order.type === 'External') : [];
+      const hasShopMapped = externalOrders.some(
+        (order) => normalize(order.externalShopName) === normalize(userInfo?.name)
       );
-      const data = await response.json();
-      setSummary({
-        todayOrders: data.todayOrders || 0,
-        pendingOrders: data.pendingOrders || 0,
-        deliveredOrders: data.deliveredOrders || 0,
-        revenueToday: data.revenueToday || 0,
-        unpaidOrders: data.unpaidOrders || 0,
-      });
-    } catch (error) {
-      toast.error('Failed to load supplier summary.');
+      const scopedOrders = hasShopMapped
+        ? externalOrders.filter((order) => normalize(order.externalShopName) === normalize(userInfo?.name))
+        : externalOrders;
+      setOrders(scopedOrders);
+    } catch {
+      toast.error('Failed to load supplier orders.');
     }
   };
 
@@ -58,11 +41,36 @@ const MealDashboard = () => {
     const load = async () => {
       if (!userInfo || userInfo.role !== 'MealSupplier') return;
       setLoading(true);
-      await Promise.all([fetchOrders(), fetchSummary()]);
+      await fetchOrders();
       setLoading(false);
     };
     load();
   }, [dateFilter, userInfo]);
+
+  const summary = useMemo(() => {
+    const pendingOrders = orders.filter(
+      (order) =>
+        order.status !== 'Cancelled' &&
+        ['Pending', 'Preparing', 'Out for Delivery'].includes(order.deliveryStatus || 'Pending')
+    ).length;
+    const deliveredOrders = orders.filter(
+      (order) => order.status !== 'Cancelled' && (order.deliveryStatus || 'Pending') === 'Delivered'
+    ).length;
+    const unpaidOrders = orders.filter(
+      (order) => order.status !== 'Cancelled' && order.paymentStatus === 'Unpaid'
+    ).length;
+    const revenueToday = orders
+      .filter((order) => order.status !== 'Cancelled' && order.paymentStatus === 'Paid')
+      .reduce((sum, order) => sum + (Number(order.externalAmount) || 0), 0);
+
+    return {
+      todayOrders: orders.length,
+      pendingOrders,
+      deliveredOrders,
+      unpaidOrders,
+      revenueToday,
+    };
+  }, [orders]);
 
   const recentOrders = useMemo(() => orders.slice(0, 8), [orders]);
 
@@ -78,7 +86,7 @@ const MealDashboard = () => {
         throw new Error(data.message || 'Failed to update delivery status.');
       }
       toast.success('Delivery status updated.');
-      await Promise.all([fetchOrders(), fetchSummary()]);
+      await fetchOrders();
     } catch (error) {
       toast.error(error.message || 'Failed to update delivery status.');
     }
@@ -92,8 +100,8 @@ const MealDashboard = () => {
         <main className="flex-1 p-8">
           <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-gray-800">Supplier Dashboard</h2>
-              <p className="text-sm text-gray-500">Manage your meal orders and track delivery progress.</p>
+              <h2 className="text-3xl font-bold text-gray-800">3rd Party Orders Dashboard</h2>
+              <p className="text-sm text-gray-500">Manage student external meal orders and track delivery progress.</p>
             </div>
             <div className="flex items-center gap-2">
               <label htmlFor="supplier-order-date" className="text-xs font-bold tracking-wide text-gray-500 uppercase">
@@ -132,7 +140,7 @@ const MealDashboard = () => {
 
           <div className="mt-8 overflow-hidden bg-white border border-gray-100 shadow-sm rounded-xl">
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-              <h3 className="font-bold text-gray-800">Incoming Student Orders</h3>
+              <h3 className="font-bold text-gray-800">Incoming Student External Orders</h3>
             </div>
 
             {loading ? (
