@@ -1,11 +1,13 @@
 // 1. DNS Fix: Force Node.js to use Google/Cloudflare DNS to resolve MongoDB Atlas addresses
 const dns = require("node:dns/promises");
 dns.setServers(["8.8.8.8", "1.1.1.1"]); 
+dns.setServers(["8.8.8.8", "1.1.1.1"]); 
 
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const path = require('path'); // 👈 Path module eka add kala
 const cron = require('node-cron'); // <--- NEW: Import Cron for automation
 const Booking = require('./models/bookingModel'); // <--- NEW: Need this to update rent status
 
@@ -20,7 +22,13 @@ const maintenanceRoutes = require('./routes/maintenanceRoute');
 // -------------------------------------
 const chatbotRoutes = require('./routes/chatbotRoute');
 const paymentRoutes = require('./routes/paymentRoute');
+
+// 👇 --- Added for Laundry Feature (My Part) --- 👇
+const laundryRoutes = require('./routes/laundryRoute');
+// 👆 ------------------------------------------- 👆
 const invoiceRoutes = require('./routes/invoiceRoute');
+const mealRoutes = require('./routes/mealRoute');
+
 
 // Load environment variables from .env
 dotenv.config();
@@ -31,6 +39,11 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 👇 --- SERVE STATIC FILES (Image Show Fix) --- 👇
+// Meken thamai frontend/public folder eke thiyena images backend URL eken pennanna ida denne
+app.use(express.static(path.join(__dirname, '../frontend/public')));
+// 👆 ------------------------------------------- 👆
+
 // 2. Database Connection Logic
 const connectDB = async () => {
   try {
@@ -39,6 +52,7 @@ const connectDB = async () => {
   } catch (error) {
     console.error(`❌ Database Error: ${error.message}`);
     process.exit(1); 
+    process.exit(1); 
   }
 };
 
@@ -46,6 +60,7 @@ const connectDB = async () => {
 connectDB();
 
 // 3. API Routes 
+app.use('/api/auth', authRoutes); 
 // This tells Express to send any requests starting with these paths to the correct route files
 app.use('/api/auth', authRoutes); 
 // ======================================================
@@ -75,6 +90,12 @@ app.use('/api/maintenance', maintenanceRoutes);
 // ---------------------------------------
 app.use('/api/chat', chatbotRoutes);
 app.use('/api/payment', paymentRoutes);
+
+// 👇 --- Added for Laundry Feature (My Part) --- 👇
+app.use('/api/laundry', laundryRoutes); 
+// 👆 ------------------------------------------- 👆
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/meals', mealRoutes);
 app.use('/api/invoices', invoiceRoutes);
 
 // Static folder for Profile Pictures

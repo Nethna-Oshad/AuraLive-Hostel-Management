@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const MealNavbar = () => {
   const navigate = useNavigate();
@@ -7,6 +8,7 @@ const MealNavbar = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('userInfo');
+    toast.success('Logged out successfully.');
     navigate('/login');
   };
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+// Fixed: Added UtensilsCrossed to the import list!
+import { Home, LogIn, UserPlus, LogOut, User, ShoppingBag, UtensilsCrossed } from 'lucide-react';
 import axios from 'axios';
-import { LogIn, UserPlus, LogOut } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
@@ -61,9 +62,23 @@ const Navbar = () => {
         {/* Right Side: Auth Buttons & Profile */}
         <div className="flex items-center z-10">
           {userInfo ? (
-            <div className="flex items-center space-x-5">
+            <div className="flex items-center space-x-3 md:space-x-5">
               
-              {/* CREATIVE PROFILE BADGE */}
+              {/* Extra Links (Only visible to Students) */}
+              {userInfo.role === 'Student' && (
+                <div className="hidden sm:flex items-center gap-4 pr-3 border-r border-gray-200">
+                  <Link to="/student/meals" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <UtensilsCrossed className="w-4 h-4" />
+                    Meals
+                  </Link>
+                  <Link to="/student/my-orders" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <ShoppingBag className="w-4 h-4" />
+                    Orders
+                  </Link>
+                </div>
+              )}
+
+              {/* CREATIVE PROFILE BADGE (Clickable) */}
               {userInfo.role === 'Student' ? (
                 <Link 
                   to="/profile" 
@@ -77,12 +92,12 @@ const Navbar = () => {
                       userInfo.name.charAt(0).toUpperCase()
                     )}
                   </div>
-                  <span className="text-sm text-gray-500 font-medium">
+                  <span className="hidden sm:block text-sm text-gray-500 font-medium">
                     Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
                   </span>
                 </Link>
               ) : (
-                <div className="flex items-center gap-2 bg-[#CBDDE9]/20 px-4 py-1.5 rounded-full border border-[#CBDDE9]/50">
+                <div className="hidden sm:flex items-center gap-2 bg-[#CBDDE9]/20 px-4 py-1.5 rounded-full border border-[#CBDDE9]/50">
                   <span className="text-gray-600">
                     Hi, <span className="font-bold text-[#2872A1]">{userInfo.name.split(' ')[0]}</span>
                   </span>
@@ -92,10 +107,11 @@ const Navbar = () => {
               {/* Logout Button */}
               <button 
                 onClick={handleLogout} 
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-red-500 transition-all duration-200 bg-red-50 rounded-xl hover:bg-red-500 hover:text-white hover:shadow-md hover:-translate-y-0.5"
+                className="flex items-center gap-1.5 px-3 py-2 md:px-4 text-sm font-bold text-red-500 transition-all duration-200 bg-red-50 rounded-xl hover:bg-red-500 hover:text-white hover:shadow-md hover:-translate-y-0.5"
+                title="Logout"
               >
                 <LogOut className="w-4 h-4" />
-                Logout
+                <span className="hidden sm:block">Logout</span>
               </button>
             </div>
           ) : (
