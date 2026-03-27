@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  createCheckoutSession, 
-  verifyPayment, 
+
+// Combine ALL imports from paymentController into one single list
+const {
+  createCheckoutSession,
+  verifyPayment,
+  createMealCheckoutSession,
+  verifyMealPayment,
   createMonthlyCheckout, 
   verifyMonthlyPayment 
 } = require('../controllers/paymentController');
@@ -10,6 +14,10 @@ const {
 // Initial Deposit Routes
 router.post('/create-checkout-session', createCheckoutSession);
 router.post('/verify', verifyPayment);
+
+// Meal Payment Routes
+router.post('/create-meal-checkout-session', createMealCheckoutSession);
+router.post('/verify-meal', verifyMealPayment);
 
 // ==========================================
 // NEW: MONTHLY RENT ROUTES
