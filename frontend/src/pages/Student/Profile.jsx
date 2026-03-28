@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
+import {  AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, Mail, Phone, ShieldCheck, Home as HomeIcon, 
@@ -20,7 +20,6 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [profilePicPreview, setProfilePicPreview] = useState(null);
   
-  // Modal States
   const [showWarning, setShowWarning] = useState(false); 
   const [showHistoryModal, setShowHistoryModal] = useState(false); 
   const [invoices, setInvoices] = useState([]); 
@@ -57,21 +56,18 @@ const Profile = () => {
           specialRequests: booking.specialRequests || ''
         });
 
-        // Fetch room to get exact rent pricing
         try {
           const roomRes = await axios.get('http://localhost:5000/api/rooms');
           const myRoom = roomRes.data.find(r => r._id === booking.roomId);
           if (myRoom) setRoomDetails(myRoom);
         } catch (roomErr) {
-          console.error("Could not fetch room details for pricing.");
+          console.error(roomErr);
         }
 
-        // --- 🚨 SMART WARNING POPUP LOGIC 🚨 ---
         const currentDay = new Date().getDate();
         const todayString = new Date().toDateString();
         const lastDismissed = localStorage.getItem('rentWarningDismissedDate');
 
-        // Check if: It's past the 25th AND rent is unpaid AND they haven't clicked 'Remind Me Later' today
         if (currentDay >= 25 && booking.monthlyRentStatus === 'Unpaid' && lastDismissed !== todayString) {
           setShowWarning(true);
         } else {
@@ -79,7 +75,7 @@ const Profile = () => {
         }
 
       } catch (err) {
-        console.log("No booking found for this student.", err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -87,11 +83,8 @@ const Profile = () => {
     fetchProfileData();
   }, [userInfo, navigate]);
 
-  // --- ACTIONS ---
-
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // Dismiss Warning for 1 day
   const handleDismissWarning = () => {
     localStorage.setItem('rentWarningDismissedDate', new Date().toDateString());
     setShowWarning(false);
@@ -114,13 +107,13 @@ const Profile = () => {
         toast.dismiss('photo');
         toast.success('Picture updated!');
       } catch (err) {
+        console.error(err);
         toast.dismiss('photo');
         toast.error('Failed to save picture.');
       }
     }
   };
 
-  // FIXED: Removed the duplicate/broken catch blocks that caused the Vite crash!
   const handleUpdateInfo = async (e) => {
     e.preventDefault();
     try {
@@ -129,7 +122,7 @@ const Profile = () => {
       setIsEditing(false);
       toast.success('Profile information updated successfully!');
     } catch (err) {
-      console.error("Update error:", err);
+      console.error(err);
       toast.error('Failed to update information.');
     }
   };
@@ -141,6 +134,7 @@ const Profile = () => {
       toast.dismiss('stripe');
       window.location.href = response.data.url;
     } catch (error) {
+      console.error(error);
       toast.dismiss('stripe');
       toast.error('Payment error.');
     }
@@ -153,6 +147,7 @@ const Profile = () => {
       toast.dismiss('stripe-monthly');
       window.location.href = response.data.url;
     } catch (error) {
+      console.error(error);
       toast.dismiss('stripe-monthly');
       toast.error('Payment error.');
     }
@@ -165,6 +160,7 @@ const Profile = () => {
       const res = await axios.get(`http://localhost:5000/api/invoices/student/${userInfo.email}`);
       setInvoices(res.data);
     } catch (error) {
+      console.error(error);
       toast.error('Failed to load payment history.');
     } finally {
       setLoadingInvoices(false);
@@ -183,7 +179,6 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-gray-50 font-sans py-12 px-6 relative">
 
-      {/* 🚨 WARNING POPUP OVERLAY 🚨 */}
       <AnimatePresence>
         {showWarning && (
           <motion.div
@@ -214,7 +209,6 @@ const Profile = () => {
         )}
       </AnimatePresence>
 
-      {/* 🧾 PAYMENT HISTORY MODAL OVERLAY 🧾 */}
       <AnimatePresence>
         {showHistoryModal && (
           <motion.div
@@ -241,7 +235,11 @@ const Profile = () => {
                 ) : invoices.length > 0 ? (
                   <div className="space-y-4">
                     {invoices.map((invoice) => (
-                      <div key={invoice._id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center hover:border-[#CBDDE9] transition-colors">
+                      <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        key={invoice._id} 
+                        className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center hover:border-[#CBDDE9] transition-colors"
+                      >
                         <div>
                           <p className="font-bold text-gray-900">{invoice.description}</p>
                           <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
@@ -255,7 +253,7 @@ const Profile = () => {
                           </span>
                           <p className="text-lg font-extrabold text-[#2872A1]">Rs. {invoice.amount?.toLocaleString()}</p>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 ) : (
@@ -279,10 +277,8 @@ const Profile = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* PROFILE LEFT COLUMN */}
           <div className="space-y-8">
             
-            {/* Account Card */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-24 bg-[#CBDDE9]/40 z-0"></div>
 
@@ -319,10 +315,10 @@ const Profile = () => {
               </div>
             </motion.div>
 
-            {/* CREATIVE MAINTENANCE BUTTON CARD */}
-            <div
+            <motion.div
+              whileHover={{ scale: 1.02 }}
               className="relative rounded-3xl overflow-hidden shadow-lg group cursor-pointer"
-              onClick={() => navigate('/student/maintenance')}
+              onClick={() => navigate('/student/my-maintenance')}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-[#1f5a80] to-[#153e5c] z-0 transition-transform duration-500 group-hover:scale-105"></div>
               <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors"></div>
@@ -337,11 +333,10 @@ const Profile = () => {
                   Request Maintenance
                 </div>
               </div>
-            </div>
+            </motion.div>
 
           </div>
 
-          {/* RIGHT COLUMN: Booking & Extra Information */}
           <div className="lg:col-span-2 space-y-8">
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 h-full">
 
@@ -363,7 +358,6 @@ const Profile = () => {
                     </div>
                   </div>
 
-                  {/* RENT DASHBOARD */}
                   {bookingData.paymentStatus === 'Unpaid' ? (
                     <div className="mb-8 p-6 bg-orange-50 rounded-2xl border border-orange-100 flex justify-between items-center">
                       <div>
@@ -414,7 +408,6 @@ const Profile = () => {
                     </div>
                   )}
 
-                  {/* ROOMMATES SECTION */}
                   {roommates.length > 0 && (
                     <div className="mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-100">
                       <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4">
@@ -436,7 +429,6 @@ const Profile = () => {
                     </div>
                   )}
 
-                  {/* Editable Info Form Details */}
                   <div className="flex justify-between items-center mb-6 border-t border-gray-100 pt-6">
                     <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><FileText className="w-5 h-5 text-[#2872A1]" /> Student Information</h3>
                     {!isEditing ? (
