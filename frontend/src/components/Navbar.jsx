@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, LogIn, UserPlus, LogOut, User, ShoppingBag, UtensilsCrossed } from 'lucide-react';
+import { Home, LogIn, UserPlus, LogOut, User, ShoppingBag, UtensilsCrossed, Wrench } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -18,8 +18,8 @@ const Navbar = () => {
           if (response.data.profileImage) {
             setProfileImg(response.data.profileImage);
           }
-        } catch (err) {
-          // Fails silently if they haven't booked a room yet, which is fine!
+        } catch (error) { // 👈 මෙතන 'err' එක 'error' කරලා පල්ලෙහා පාවිච්චි කළා
+          console.log("Could not fetch profile pic or user has no booking yet.", error);
         }
       }
     };
@@ -44,7 +44,7 @@ const Navbar = () => {
           </Link>
         </div>
         
-        {/* Center: Navigation Links (FLEX FIX: flex-1 and justify-center instead of absolute) */}
+        {/* Center: Navigation Links */}
         <div className="hidden lg:flex flex-1 items-center justify-center space-x-8 text-sm font-bold">
           <Link to="/home" className="text-gray-600 hover:text-[#2872A1] transition-colors duration-200">
             Home
@@ -75,6 +75,10 @@ const Navbar = () => {
                   <Link to="/student/my-orders" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
                     <ShoppingBag className="w-4 h-4" />
                     Orders
+                  </Link>
+                  <Link to="/student/my-maintenance" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
+                    <Wrench className="w-4 h-4" />
+                    Maintenance
                   </Link>
                 </div>
               )}
