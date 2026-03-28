@@ -25,6 +25,9 @@ const BookingProcess = () => {
     specialRequests: ''
   });
 
+  // Calculate today's date in YYYY-MM-DD format for the Date Picker minimum
+  const todayDateString = new Date().toISOString().split('T')[0];
+
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'Student') {
       navigate('/login');
@@ -47,11 +50,46 @@ const BookingProcess = () => {
   }, [id, navigate, userInfo]);
 
   const handleInputChange = (e) => {
+    // For phone numbers, prevent typing letters completely
+    if (e.target.name === 'emergencyContactPhone') {
+      const onlyNums = e.target.value.replace(/[^0-9]/g, '');
+      setFormData({ ...formData, [e.target.name]: onlyNums });
+      return;
+    }
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
+    
+    // ==========================================
+    // 🛡️ STRICT FORM VALIDATIONS
+    // ==========================================
+    const { nicNumber, emergencyContactPhone, expectedMoveInDate } = formData;
+
+    // 1. NIC Validation (Sri Lankan standard: 9 digits + v/V/x/X OR 12 digits)
+    const nicRegex = /^([0-9]{9}[vVxX]|[0-9]{12})$/;
+    if (!nicRegex.test(nicNumber.trim())) {
+      toast.error("Invalid NIC! Must be 12 digits OR 9 digits + V/v");
+      return;
+    }
+
+    // 2. Phone Validation (Exactly 10 digits)
+    if (emergencyContactPhone.length !== 10) {
+      toast.error("Invalid Phone Number! Must be exactly 10 digits.");
+      return;
+    }
+
+    // 3. Date Validation (Must be today or future)
+    const selectedDate = new Date(expectedMoveInDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to midnight for accurate day comparison
+    
+    if (selectedDate < today) {
+      toast.error("Move-in date cannot be in the past!");
+      return;
+    }
+    // ==========================================
     
     // Combine all data: Auto-fetched info + Room details + Form data + Agreement
     const bookingPayload = {
@@ -163,39 +201,86 @@ const BookingProcess = () => {
                 </div>
 
                 <form onSubmit={handleFinalSubmit} className="space-y-5">
+                  
+                  {/* NIC Input */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">NIC Number / Passport *</label>
                     <div className="relative">
                       <User className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-                      <input type="text" name="nicNumber" required value={formData.nicNumber} onChange={handleInputChange} className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none" placeholder="e.g. 200112345678" />
+                      <input 
+                        type="text" 
+                        name="nicNumber" 
+                        required 
+                        maxLength="12"
+                        value={formData.nicNumber} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none" 
+                        placeholder="e.g. 200112345678 or 991234567v" 
+                      />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-1">Emergency Contact Name *</label>
-                      <input type="text" name="emergencyContactName" required value={formData.emergencyContactName} onChange={handleInputChange} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none" placeholder="Guardian Name" />
+                      <input 
+                        type="text" 
+                        name="emergencyContactName" 
+                        required 
+                        value={formData.emergencyContactName} 
+                        onChange={handleInputChange} 
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none" 
+                        placeholder="Guardian Name" 
+                      />
                     </div>
+                    
+                    {/* Phone Input */}
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-1">Emergency Phone *</label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-                        <input type="text" name="emergencyContactPhone" required value={formData.emergencyContactPhone} onChange={handleInputChange} className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none" placeholder="07X XXX XXXX" />
+                        <input 
+                          type="tel" 
+                          name="emergencyContactPhone" 
+                          required 
+                          maxLength="10"
+                          value={formData.emergencyContactPhone} 
+                          onChange={handleInputChange} 
+                          className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none" 
+                          placeholder="07X XXX XXXX" 
+                        />
                       </div>
                     </div>
                   </div>
 
+                  {/* Date Picker */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Expected Move-in Date *</label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-                      <input type="date" name="expectedMoveInDate" required value={formData.expectedMoveInDate} onChange={handleInputChange} className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none" />
+                      <input 
+                        type="date" 
+                        name="expectedMoveInDate" 
+                        required 
+                        min={todayDateString} // HTML5 Validation to prevent past dates
+                        value={formData.expectedMoveInDate} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-10 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none cursor-pointer" 
+                      />
                     </div>
                   </div>
 
+                  {/* Special Requests */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Special Requests (Optional)</label>
-                    <textarea name="specialRequests" value={formData.specialRequests} onChange={handleInputChange} rows="3" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none resize-none" placeholder="Any medical conditions or specific requirements?"></textarea>
+                    <textarea 
+                      name="specialRequests" 
+                      value={formData.specialRequests} 
+                      onChange={handleInputChange} 
+                      rows="3" 
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] outline-none resize-none" 
+                      placeholder="Any medical conditions or specific requirements?"
+                    ></textarea>
                   </div>
 
                   <button type="submit" className="w-full py-4 mt-4 rounded-xl font-bold text-white text-lg transition-all bg-[#2872A1] hover:bg-[#1f5a80] shadow-lg shadow-[#CBDDE9] hover:-translate-y-0.5">
@@ -221,7 +306,7 @@ const BookingProcess = () => {
                   <div className="flex justify-between"><span className="text-gray-500">Key Money (Deposit)</span><span className="font-bold text-gray-800">Rs. {room.keyMoney}</span></div>
                 </div>
                 <div className="mt-6 pt-6 border-t border-gray-200 flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 p-3 rounded-lg">
-                  <ShieldCheck className="w-4 h-4" /> No payment required right now.
+                  <ShieldCheck className="w-4 h-4 shrink-0" /> No payment required right now.
                 </div>
               </div>
 
