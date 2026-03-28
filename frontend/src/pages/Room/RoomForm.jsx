@@ -69,9 +69,9 @@ const RoomForm = ({ roomToEdit, onSuccess, onCancel }) => {
 
     if (formData.description.length > 500) return toast.error("Description is too long (max 500 chars).");
     
-    // Suggested Validation: Image file size check (max 2MB)
-    if (imageFile && imageFile.size > 2 * 1024 * 1024) {
-      return toast.error("Image size must be less than 2MB.");
+    // Suggested Validation: Image file size check (max 10MB )
+    if (imageFile && imageFile.size > 10 * 1024 * 1024) {
+      return toast.error("Image size must be less than 10MB.");
     }
 
     const capacity = Number(maxCapacity);

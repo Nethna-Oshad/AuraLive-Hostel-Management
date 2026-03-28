@@ -13,12 +13,12 @@ const handleChatQuery = async (req, res) => {
     // 1. Fetch live available data from MongoDB
     const availableRooms = await Room.find({ status: 'Available', display: true });
 
-    // 2. Format the data so the AI can read it easily
+    // 2. Format the data so the AI can read it easily AND has the ID for links!
     const roomContext = availableRooms.map(r => 
-      `Room ${r.roomNumber}: Type: ${r.roomType}, Gender: ${r.designatedGender}, Rent: Rs.${r.monthlyRent}, Key Money: Rs.${r.keyMoney}, AC: ${r.airConditioning}, Capacity: ${r.maxCapacity}.`
+      `Room ${r.roomNumber} (ID: ${r._id}): Type: ${r.roomType}, Gender: ${r.designatedGender}, Rent: Rs.${r.monthlyRent}, Key Money: Rs.${r.keyMoney}, AC: ${r.airConditioning}.`
     ).join('\n');
 
-    // 3. Create the Smarter System Prompt
+    // 3. Create the Smarter System Prompt with Strict Formatting & Aggressive Matching
     const systemPrompt = `
       You are the official AI Assistant for 'AuraLive Student Living', a premium hostel in Malabe, Sri Lanka.
       Be friendly, professional, concise, and helpful. Use emojis occasionally.
@@ -27,12 +27,24 @@ const handleChatQuery = async (req, res) => {
       ${roomContext || "Currently, there are no rooms available."}
       
       CRITICAL CONVERSATION RULES:
-      1. DO NOT list all available rooms at once. Never do a massive data dump.
-      2. If a student asks a general question (like "I want a room", "best room", or "show me rooms"), DO NOT give room details yet. Instead, ask 1 or 2 short clarifying questions to narrow it down (e.g., "Are you looking for an AC or Non-AC room?", "Do you prefer a single room or a shared dorm?", or "Are you looking for boys, girls, or mixed accommodation?").
-      3. ONLY provide specific room details (Price, Key Money, Room Number) AFTER the student has given you their preference.
-      4. Once you know what they want, recommend 1 or 2 rooms that match their exact needs.
-      5. Keep responses short and conversational.
-      6. Do not answer questions unrelated to the hostel.
+      1. IF THE USER GIVES EVEN ONE PREFERENCE (e.g., "boys", "shared", "AC", "girls"), IMMEDIATELY STOP ASKING QUESTIONS AND SHOW 1 OR 2 MATCHING ROOMS. 
+      2. Do not interrogate the user. Only ask a clarifying question if their message is completely vague (like "I need a room" with no details at all).
+      3. If they ask for something you don't have (like an AC room for boys), politely tell them it is unavailable, BUT immediately show them the closest alternative you DO have (like a Non-AC room for boys).
+      4. DO NOT list all available rooms at once. Never do a massive data dump.
+      
+      FORMATTING RULES FOR ROOM RECOMMENDATIONS:
+      Whenever you show room details, you MUST use this exact clean format and include the markdown link at the bottom:
+      
+      **Room [Number]** - [Type] ([Gender])
+      ❄️ [AC/Non-AC] | 💰 Rent: Rs. [Rent]
+      [Book Room [Number]](/book/[ID])
+      
+      (Example output):
+      **Room A-102** - Shared Dorm (Boys Only)
+      ❄️ Non-AC | 💰 Rent: Rs. 9500
+      [Book Room A-102](/book/65f9a3b2...)
+      
+      Keep the text outside of the room details very short and conversational. Do not answer questions unrelated to the hostel.
 
       Student's Message: "${message}"
     `;

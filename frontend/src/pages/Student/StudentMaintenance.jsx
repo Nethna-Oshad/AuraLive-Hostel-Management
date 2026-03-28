@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { Upload, Wrench, AlertCircle, CheckCircle, Image as ImageIcon, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, Wrench, AlertCircle, CheckCircle, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const StudentMaintenance = () => {
-  // Student ge ID eka LocalStorage eken gannawa (Kalin login weddi save karapu)
-  const userInfo = JSON.parse(localStorage.getItem('userInfo')) || { _id: 'dummy_student_id' }; // Replace with actual logged-in user logic
+  const navigate = useNavigate();
+
+  // Get student info from LocalStorage
+  const userInfo = JSON.parse(localStorage.getItem('userInfo')) || { _id: '', email: '' };
 
   const [formData, setFormData] = useState({
     roomNumber: '',
@@ -16,13 +19,42 @@ const StudentMaintenance = () => {
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetchingRoom, setFetchingRoom] = useState(true);
 
-  // Form eke text type karaddi state eka update wena eka
+  // ==========================================
+  // NEW: AUTO-FETCH ROOM NUMBER
+  // ==========================================
+  useEffect(() => {
+    const fetchRoomNumber = async () => {
+      if (!userInfo.email) {
+        setFetchingRoom(false);
+        return;
+      }
+      try {
+        const response = await fetch(`http://localhost:5000/api/bookings/${userInfo.email}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Extract the room number (handles both old response style and new {booking, roommates} style)
+          const bookingInfo = data.booking || data; 
+          
+          if (bookingInfo && bookingInfo.roomNumber) {
+            setFormData(prev => ({ ...prev, roomNumber: bookingInfo.roomNumber }));
+          }
+        }
+      } catch (error) {
+        console.error("Could not fetch room number:", error);
+      } finally {
+        setFetchingRoom(false);
+      }
+    };
+
+    fetchRoomNumber();
+  }, [userInfo.email]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Photo eka upload karaddi preview ekak pennana eka
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -31,25 +63,34 @@ const StudentMaintenance = () => {
     }
   };
 
-  // Photo eka remove karanna
   const removePhoto = () => {
     setPhoto(null);
     setPreview(null);
   };
 
-  // Form eka Submit karana function eka (Backend ekata data yawana thena)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.roomNumber || !formData.description) {
-      toast.error("Please fill in all required fields!");
+    
+    if (!formData.roomNumber) {
+      toast.error("Room number is required!");
+      return;
+    }
+
+    // ==========================================
+    // NEW: 10-WORD MINIMUM VALIDATION
+    // ==========================================
+    // Remove extra spaces and split by space to count words accurately
+    const wordCount = formData.description.trim().split(/\s+/).filter(word => word.length > 0).length;
+    
+    if (wordCount < 10) {
+      toast.error(`Please provide more details. You need at least 10 words (Currently: ${wordCount}).`);
       return;
     }
 
     setLoading(true);
 
-    // Image ekak thiyena nisa api 'FormData' use karanna oni (Normal JSON ba)
     const submitData = new FormData();
-    submitData.append('studentId', userInfo._id); // Send student ID
+    submitData.append('studentId', userInfo._id); 
     submitData.append('roomNumber', formData.roomNumber);
     submitData.append('issueType', formData.issueType);
     submitData.append('description', formData.description);
@@ -62,14 +103,17 @@ const StudentMaintenance = () => {
       const response = await fetch('http://localhost:5000/api/maintenance/create', {
         method: 'POST',
         body: submitData,
-        // FormData daddi 'Content-Type' header eka auto set wenawa, eka nisa manual danna epa
       });
 
       if (response.ok) {
         toast.success("Maintenance request submitted successfully!");
-        // Form eka clear karanawa
-        setFormData({ roomNumber: '', issueType: 'Plumbing', description: '', priority: 'Medium' });
+        setFormData(prev => ({ ...prev, issueType: 'Plumbing', description: '', priority: 'Medium' }));
         removePhoto();
+
+        // Redirect student to home page after successful submission.
+        setTimeout(() => {
+          navigate('/home');
+        }, 1000);
       } else {
         const errorData = await response.json();
         toast.error(errorData.message || "Failed to submit request.");
@@ -80,6 +124,9 @@ const StudentMaintenance = () => {
       setLoading(false);
     }
   };
+
+  // Helper to count words for the live UI counter
+  const currentWordCount = formData.description.trim().split(/\s+/).filter(word => word.length > 0).length;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 sm:px-6 lg:px-8 font-sans">
@@ -102,18 +149,33 @@ const StudentMaintenance = () => {
           <form onSubmit={handleSubmit} className="p-8 space-y-8">
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Room Number */}
+              {/* Room Number (Auto-fetched & Locked) */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Room Number *</label>
-                <input
-                  type="text"
-                  name="roomNumber"
-                  value={formData.roomNumber}
-                  onChange={handleChange}
-                  placeholder="e.g. A-102"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#2872A1] focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="roomNumber"
+                    value={formData.roomNumber}
+                    onChange={handleChange}
+                    placeholder={fetchingRoom ? "Fetching room..." : "e.g. A-102"}
+                    readOnly={!!formData.roomNumber} // Locks the input if we found their room!
+                    className={`w-full px-4 py-3 rounded-xl border border-gray-200 outline-none transition-all ${
+                      formData.roomNumber 
+                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed font-bold' // Styling for locked state
+                        : 'bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#2872A1]'
+                    }`}
+                    required
+                  />
+                  {formData.roomNumber && !fetchingRoom && (
+                    <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" />
+                  )}
+                </div>
+                {formData.roomNumber && (
+                  <p className="text-[10px] font-bold text-[#2872A1] mt-1 uppercase tracking-wider">
+                    Auto-detected from your booking
+                  </p>
+                )}
               </div>
 
               {/* Issue Type */}
@@ -162,21 +224,35 @@ const StudentMaintenance = () => {
               </div>
             </div>
 
-            {/* Description */}
+            {/* Description with Word Counter */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Describe the Issue *</label>
+              <div className="flex justify-between items-end mb-2">
+                <label className="block text-sm font-bold text-gray-700">Describe the Issue *</label>
+                <span className={`text-xs font-bold ${currentWordCount >= 10 ? 'text-emerald-500' : 'text-orange-500'}`}>
+                  {currentWordCount} / 10 words min
+                </span>
+              </div>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
                 rows="4"
-                placeholder="Please provide details so our maintainers know exactly what to fix..."
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#2872A1] focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white resize-none"
+                placeholder="Please describe exactly what is broken, where it is located, and how long it has been an issue..."
+                className={`w-full px-4 py-3 rounded-xl border outline-none transition-all resize-none ${
+                  formData.description.length > 0 && currentWordCount < 10
+                    ? 'border-orange-300 bg-orange-50 focus:ring-2 focus:ring-orange-400' 
+                    : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#2872A1]'
+                }`}
                 required
               ></textarea>
+              {formData.description.length > 0 && currentWordCount < 10 && (
+                <p className="text-xs text-orange-600 font-medium mt-1">
+                  Please add {10 - currentWordCount} more words to help our technicians understand the problem.
+                </p>
+              )}
             </div>
 
-            {/* Photo Upload (Pro Feature) */}
+            {/* Photo Upload */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Upload a Photo (Optional)</label>
               
