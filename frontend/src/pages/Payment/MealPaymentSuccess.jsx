@@ -46,8 +46,11 @@ const MealPaymentSuccess = () => {
             <p className="text-gray-500 mb-10 leading-relaxed">
               We could not verify this meal payment automatically. Please contact admin if the amount was charged.
             </p>
-            <button onClick={() => navigate('/student/meals')} className="w-full bg-gray-800 text-white font-bold py-4 rounded-xl hover:bg-gray-900 transition-all">
-              Return to Meals
+            <button 
+              onClick={() => navigate('/student/meals/third-party')} 
+              className="w-full bg-gray-800 text-white font-bold py-4 rounded-xl hover:bg-gray-900 transition-all"
+            >
+              Return to 3rd Party Meals
             </button>
           </>
         ) : (
@@ -59,8 +62,11 @@ const MealPaymentSuccess = () => {
             <p className="text-gray-500 mb-10 leading-relaxed">
               Your external meal order payment has been confirmed. Your order will now be processed by the selected shop.
             </p>
-            <button onClick={() => navigate('/student/meals')} className="w-full bg-gradient-to-r from-[#2872A1] to-[#1f5a80] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:shadow-xl transition-all shadow-md">
-              Back to Meal Dashboard <ArrowRight className="w-5 h-5" />
+            <button 
+              onClick={() => navigate('/student/meals/third-party')} 
+              className="w-full bg-gradient-to-r from-[#2872A1] to-[#1f5a80] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:shadow-xl transition-all shadow-md"
+            >
+              Back to 3rd Party Meals <ArrowRight className="w-5 h-5" />
             </button>
           </>
         )}
