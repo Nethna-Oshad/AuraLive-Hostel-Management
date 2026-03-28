@@ -1,12 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck } from 'lucide-react';
+import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const ThirdPartyMealDashboard = () => {
   const navigate = useNavigate();
+
+  // Calculate today and the max selectable date (today + 6 days = 7 day window)
   const todayDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const maxDate = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 6);
+    return date.toISOString().slice(0, 10);
+  }, []);
+
   const userInfo = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('userInfo'));
@@ -20,6 +28,7 @@ const ThirdPartyMealDashboard = () => {
   const [shops, setShops] = useState([]);
   const [allFull, setAllFull] = useState(false);
   const [studentBookings, setStudentBookings] = useState([]);
+  const [showAllBookings, setShowAllBookings] = useState(false); // State for toggling visible bookings
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
 
@@ -266,6 +275,8 @@ const ThirdPartyMealDashboard = () => {
     );
   };
 
+  const displayedBookings = showAllBookings ? studentBookings : studentBookings.slice(0, 3);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -298,8 +309,9 @@ const ThirdPartyMealDashboard = () => {
                   type="date"
                   value={selectedDate}
                   min={todayDate}
+                  max={maxDate} // Sets the 7-day rolling window limit
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent outline-none text-sm font-semibold text-gray-700"
+                  className="bg-transparent outline-none text-sm font-semibold text-gray-700 cursor-pointer"
                 />
               </div>
 
@@ -414,9 +426,16 @@ const ThirdPartyMealDashboard = () => {
         )}
 
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My External Orders
-          </h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My External Orders
+            </h2>
+            {studentBookings.length > 3 && (
+              <span className="text-sm font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                Total: {studentBookings.length}
+              </span>
+            )}
+          </div>
 
           {studentBookings.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
@@ -424,7 +443,7 @@ const ThirdPartyMealDashboard = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {studentBookings.map((booking) => (
+              {displayedBookings.map((booking) => (
                 <div
                   key={booking._id}
                   className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100 rounded-xl p-4 bg-gradient-to-r from-white to-slate-50 hover:shadow-sm transition-all"
@@ -487,6 +506,26 @@ const ThirdPartyMealDashboard = () => {
                   </div>
                 </div>
               ))}
+
+              {/* View All / Show Less Toggle Button */}
+              {studentBookings.length > 3 && (
+                <div className="pt-4 flex justify-center">
+                  <button
+                    onClick={() => setShowAllBookings(!showAllBookings)}
+                    className="flex items-center gap-1.5 text-sm font-bold text-[#2872A1] hover:text-[#1f5a80] transition-colors py-2 px-4 rounded-full hover:bg-blue-50"
+                  >
+                    {showAllBookings ? (
+                      <>
+                        Show Less <ChevronUp className="w-4 h-4" />
+                      </>
+                    ) : (
+                      <>
+                        View All {studentBookings.length} Orders <ChevronDown className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

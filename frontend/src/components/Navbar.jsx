@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-// Fixed: Added UtensilsCrossed to the import list!
 import { Home, LogIn, UserPlus, LogOut, User, ShoppingBag, UtensilsCrossed } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -35,16 +34,18 @@ const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-white/90 border-b border-gray-100 backdrop-blur-md shadow-sm">
-      <div className="container flex items-center justify-between px-6 py-4 mx-auto max-w-7xl relative">
+      <div className="container flex items-center justify-between px-6 py-4 mx-auto max-w-7xl">
         
         {/* Left Side: Brand Logo */}
-        <Link to="/" className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-gray-900 hover:opacity-90 transition-opacity z-10">
-          <img src="/Logo.png" alt="AuraLive Logo" className="w-10 h-10 object-contain" />
-          <span>Aura<span className="text-[#2872A1]">Live</span></span>
-        </Link>
+        <div className="flex-shrink-0 z-10">
+          <Link to="/" className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-gray-900 hover:opacity-90 transition-opacity">
+            <img src="/Logo.png" alt="AuraLive Logo" className="w-10 h-10 object-contain" />
+            <span>Aura<span className="text-[#2872A1]">Live</span></span>
+          </Link>
+        </div>
         
-        {/* Center: Navigation Links (No Icons) */}
-        <div className="hidden md:flex items-center space-x-8 text-sm font-bold absolute left-1/2 transform -translate-x-1/2">
+        {/* Center: Navigation Links (FLEX FIX: flex-1 and justify-center instead of absolute) */}
+        <div className="hidden lg:flex flex-1 items-center justify-center space-x-8 text-sm font-bold">
           <Link to="/home" className="text-gray-600 hover:text-[#2872A1] transition-colors duration-200">
             Home
           </Link>
@@ -60,13 +61,13 @@ const Navbar = () => {
         </div>
         
         {/* Right Side: Auth Buttons & Profile */}
-        <div className="flex items-center z-10">
+        <div className="flex-shrink-0 flex items-center z-10">
           {userInfo ? (
             <div className="flex items-center space-x-3 md:space-x-5">
               
               {/* Extra Links (Only visible to Students) */}
               {userInfo.role === 'Student' && (
-                <div className="hidden sm:flex items-center gap-4 pr-3 border-r border-gray-200">
+                <div className="hidden sm:flex items-center gap-4 pr-4 border-r border-gray-200">
                   <Link to="/student/meals" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
                     <UtensilsCrossed className="w-4 h-4" />
                     Meals
@@ -115,7 +116,7 @@ const Navbar = () => {
               </button>
             </div>
           ) : (
-            <div className="flex items-center space-x-5">
+            <div className="flex items-center space-x-4">
               <Link to="/login" className="flex items-center gap-1.5 text-gray-600 font-bold transition-colors duration-200 hover:text-[#2872A1]">
                 <LogIn className="w-4 h-4" />
                 Login

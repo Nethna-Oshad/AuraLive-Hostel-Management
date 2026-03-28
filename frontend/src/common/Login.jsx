@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-// FIXED: Added AlertCircle to the import
-import { Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [stats, setStats] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // NEW: Form loading state
   const navigate = useNavigate();
 
   // Fetch stats when the page loads
@@ -35,6 +35,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true); // Start button spinner
 
     try {
       const response = await fetch('http://localhost:5000/api/auth/login', {
@@ -58,21 +59,22 @@ const Login = () => {
       
     } catch (err) {
       setError(err.message);
+      setIsSubmitting(false); // Stop spinner on error
     }
   };
 
   // Helper component to render a beautiful frosted-glass stat card
   const StatCard = ({ title, icon, data }) => (
-    <div className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl shadow-xl hover:bg-white/20 transition-all duration-300">
+    <div className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl shadow-lg hover:bg-white/20 transition-all duration-300">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shadow-inner">
           {icon}
         </div>
         <h3 className="text-white font-bold tracking-wide">{title}</h3>
       </div>
-      {/* FIXED: Changed dataCount to data */}
+      
       {data ? (
-        <div className="flex justify-between items-end">
+        <div className="flex justify-between items-end animate-in fade-in duration-500">
           <div>
             <p className="text-gray-300 text-[10px] uppercase tracking-widest font-extrabold mb-1">Total</p>
             <p className="text-3xl font-extrabold text-white leading-none">{data.total}</p>
@@ -82,20 +84,27 @@ const Login = () => {
               {data.active} Active
             </span>
             <span className="bg-orange-500/20 text-orange-100 border border-orange-400/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
-              {data.inactive || data.pending} Pending
+              {data.inactive || data.pending || 0} Pending
             </span>
           </div>
         </div>
       ) : (
-        <div className="animate-pulse flex space-x-4 h-12 items-center text-gray-300 text-sm font-medium">
-          Loading data...
+        /* NEW: Beautiful Skeleton Loaders instead of text */
+        <div className="flex justify-between items-end animate-pulse">
+          <div className="space-y-2">
+            <div className="h-2.5 w-10 bg-white/20 rounded-full"></div>
+            <div className="h-8 w-16 bg-white/20 rounded-lg"></div>
+          </div>
+          <div className="flex flex-col gap-2 text-right">
+            <div className="h-5 w-20 bg-white/20 rounded-full"></div>
+            <div className="h-5 w-20 bg-white/20 rounded-full"></div>
+          </div>
         </div>
       )}
     </div>
   );
 
   return (
-    // STRICT NO SCROLLING: h-screen and overflow-hidden lock the page to the exact monitor height
     <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
       
       {/* Left Side: System Statistics & Beautiful Image */}
@@ -103,7 +112,6 @@ const Login = () => {
         className="hidden lg:flex lg:w-1/2 relative flex-col justify-center p-12 bg-cover bg-center"
         style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80")' }}
       >
-        {/* Dark/Blue gradient overlay to make text readable over the image */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0a192f]/95 via-[#1f5a80]/85 to-[#2872A1]/70 z-0"></div>
 
         <div className="relative z-10 max-w-lg w-full mx-auto">
@@ -114,23 +122,16 @@ const Login = () => {
             Join our premium ecosystem of modern student accommodations and trusted service providers.
           </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <StatCard title="Students" icon="🎓" data={stats?.students} />
-            <StatCard title="Laundry" icon="👕" data={stats?.laundry} />
-            <StatCard title="Meals" icon="🍲" data={stats?.meals} />
-            <StatCard title="Maintenance" icon="🔧" data={stats?.maintainers} />
-          </div>
+         
         </div>
       </div>
 
       {/* Right Side: Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative">
-        {/* Background decorative blob for the right side */}
         <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-[#CBDDE9]/40 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="w-full max-w-md p-10 bg-white border border-gray-100 shadow-2xl shadow-[#CBDDE9]/30 rounded-[2rem] relative z-10">
+        <div className="w-full max-w-md p-10 bg-white border border-gray-100 shadow-2xl shadow-[#CBDDE9]/20 rounded-[2rem] relative z-10">
           <div className="mb-10 text-center">
-            {/* Show Logo on mobile only */}
             <h2 className="text-4xl font-extrabold text-gray-900 lg:hidden mb-2">
               Aura<span className="text-[#2872A1]">Live</span>
             </h2>
@@ -139,14 +140,14 @@ const Login = () => {
           </div>
 
           {error && (
-            <div className="p-4 mb-6 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl font-bold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" /> {error}
+            <div className="p-4 mb-6 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
           
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Email Address</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Email Address</label>
               <input 
                 type="email" 
                 name="email" 
@@ -158,7 +159,7 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Password</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Password</label>
               <div className="relative">
                 <input 
                   type={showPassword ? "text" : "password"} 
@@ -180,9 +181,16 @@ const Login = () => {
 
             <button 
               type="submit" 
-              className="w-full py-4 mt-2 font-extrabold text-white transition-all bg-[#2872A1] rounded-xl shadow-lg shadow-[#CBDDE9] hover:bg-[#1f5a80] hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98]"
+              disabled={isSubmitting}
+              className="w-full py-4 mt-4 font-extrabold text-white transition-all bg-[#2872A1] rounded-xl shadow-lg shadow-[#CBDDE9] hover:bg-[#1f5a80] active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed"
             >
-              Sign In to Dashboard
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" /> Authenticating...
+                </>
+              ) : (
+                "Sign In to Dashboard"
+              )}
             </button>
           </form>
 
