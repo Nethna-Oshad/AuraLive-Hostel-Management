@@ -7,7 +7,7 @@ const MealInsights = () => {
   const userInfo = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('userInfo'));
-    } catch (error) {
+    } catch {
       return null;
     }
   }, []);
@@ -20,33 +20,41 @@ const MealInsights = () => {
     unpaidOrders: 0,
   });
   const [orders, setOrders] = useState([]);
-
-  const fetchData = async () => {
-    try {
-      const [summaryRes, ordersRes] = await Promise.all([
-        fetch(`http://localhost:5000/api/meals/supplier/summary?supplierName=${encodeURIComponent(userInfo?.name || '')}`),
-        fetch(`http://localhost:5000/api/meals/supplier/orders?supplierName=${encodeURIComponent(userInfo?.name || '')}`),
-      ]);
-
-      const summaryData = await summaryRes.json();
-      const ordersData = await ordersRes.json();
-
-      setSummary({
-        todayOrders: summaryData.todayOrders || 0,
-        pendingOrders: summaryData.pendingOrders || 0,
-        deliveredOrders: summaryData.deliveredOrders || 0,
-        revenueToday: summaryData.revenueToday || 0,
-        unpaidOrders: summaryData.unpaidOrders || 0,
-      });
-      setOrders(Array.isArray(ordersData) ? ordersData : []);
-    } catch (error) {
-      toast.error('Failed to load insights.');
-    }
-  };
+  const normalize = (value) => String(value || '').trim().toLowerCase();
 
   useEffect(() => {
-    if (!userInfo || userInfo.role !== 'MealSupplier') return;
-    fetchData();
+    const loadInsights = async () => {
+      if (!userInfo || userInfo.role !== 'MealSupplier') return;
+      try {
+        const [summaryRes, ordersRes] = await Promise.all([
+          fetch(`http://localhost:5000/api/meals/supplier/summary?supplierName=${encodeURIComponent(userInfo?.name || '')}`),
+          fetch(`http://localhost:5000/api/meals/supplier/orders`),
+        ]);
+
+        const summaryData = await summaryRes.json();
+        const ordersData = await ordersRes.json();
+
+        setSummary({
+          todayOrders: summaryData.todayOrders || 0,
+          pendingOrders: summaryData.pendingOrders || 0,
+          deliveredOrders: summaryData.deliveredOrders || 0,
+          revenueToday: summaryData.revenueToday || 0,
+          unpaidOrders: summaryData.unpaidOrders || 0,
+        });
+        const externalOrders = Array.isArray(ordersData) ? ordersData.filter((order) => order.type === 'External') : [];
+        const hasShopMapped = externalOrders.some(
+          (order) => normalize(order.externalShopName) === normalize(userInfo?.name)
+        );
+        const scopedOrders = hasShopMapped
+          ? externalOrders.filter((order) => normalize(order.externalShopName) === normalize(userInfo?.name))
+          : externalOrders;
+        setOrders(scopedOrders);
+      } catch {
+        toast.error('Failed to load insights.');
+      }
+    };
+
+    loadInsights();
   }, [userInfo]);
 
   const deliveryRate = summary.todayOrders > 0
@@ -75,8 +83,8 @@ const MealInsights = () => {
       <div className="flex flex-col flex-1">
         <MealNavbar />
         <main className="flex-1 p-8">
-          <h2 className="text-3xl font-bold text-gray-800">Business Insights</h2>
-          <p className="mb-6 text-sm text-gray-500">Track key performance indicators for your meal supply operations.</p>
+          <h2 className="text-3xl font-bold text-gray-800">3rd Party Business Insights</h2>
+          <p className="mb-6 text-sm text-gray-500">Track external order KPIs and student demand patterns for your meal shop.</p>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
             <div className="p-6 bg-white border border-gray-100 rounded-xl">

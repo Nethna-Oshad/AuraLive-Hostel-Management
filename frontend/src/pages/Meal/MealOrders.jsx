@@ -7,7 +7,7 @@ const MealOrders = () => {
   const userInfo = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('userInfo'));
-    } catch (error) {
+    } catch {
       return null;
     }
   }, []);
@@ -19,20 +19,27 @@ const MealOrders = () => {
     paymentStatus: '',
   });
   const [loading, setLoading] = useState(true);
+  const normalize = (value) => String(value || '').trim().toLowerCase();
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      params.append('supplierName', userInfo?.name || '');
       if (filters.date) params.append('date', filters.date);
       if (filters.deliveryStatus) params.append('deliveryStatus', filters.deliveryStatus);
       if (filters.paymentStatus) params.append('paymentStatus', filters.paymentStatus);
 
       const response = await fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`);
       const data = await response.json();
-      setOrders(Array.isArray(data) ? data : []);
-    } catch (error) {
+      const externalOrders = Array.isArray(data) ? data.filter((order) => order.type === 'External') : [];
+      const hasShopMapped = externalOrders.some(
+        (order) => normalize(order.externalShopName) === normalize(userInfo?.name)
+      );
+      const scopedOrders = hasShopMapped
+        ? externalOrders.filter((order) => normalize(order.externalShopName) === normalize(userInfo?.name))
+        : externalOrders;
+      setOrders(scopedOrders);
+    } catch {
       toast.error('Failed to load orders.');
     } finally {
       setLoading(false);
@@ -68,8 +75,8 @@ const MealOrders = () => {
       <div className="flex flex-col flex-1">
         <MealNavbar />
         <main className="flex-1 p-8">
-          <h2 className="text-3xl font-bold text-gray-800">Order Operations</h2>
-          <p className="mb-6 text-sm text-gray-500">Filter, process, and track all orders for your shop.</p>
+          <h2 className="text-3xl font-bold text-gray-800">3rd Party Order Operations</h2>
+          <p className="mb-6 text-sm text-gray-500">Filter, process, and track all external student orders for your shop.</p>
 
           <div className="grid grid-cols-1 gap-3 p-4 mb-6 bg-white border border-gray-100 md:grid-cols-4 rounded-xl">
             <input
