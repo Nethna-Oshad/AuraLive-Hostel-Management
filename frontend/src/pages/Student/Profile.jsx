@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import {  AnimatePresence } from 'framer-motion';
+// FIXED: Added 'motion' to the import list
+import { motion, AnimatePresence } from 'framer-motion'; 
 import { useNavigate } from 'react-router-dom';
 import { 
   User, Mail, Phone, ShieldCheck, Home as HomeIcon, 
@@ -37,51 +38,61 @@ const Profile = () => {
 
     const fetchProfileData = async () => {
       try {
+        // Fetch Booking Data
         const response = await axios.get(`http://localhost:5000/api/bookings/${userInfo.email}`);
         
-        const booking = response.data.booking;
-        const fetchedRoommates = response.data.roommates;
+        // If successful
+        if (response.data && response.data.booking) {
+          const booking = response.data.booking;
+          const fetchedRoommates = response.data.roommates || [];
 
-        setBookingData(booking);
-        setRoommates(fetchedRoommates);
-        
-        if (booking.profileImage) {
-          setProfilePicPreview(booking.profileImage);
+          setBookingData(booking);
+          setRoommates(fetchedRoommates);
+          
+          if (booking.profileImage) {
+            setProfilePicPreview(booking.profileImage);
+          }
+
+          setFormData({
+            nicNumber: booking.nicNumber || '',
+            emergencyContactName: booking.emergencyContactName || '',
+            emergencyContactPhone: booking.emergencyContactPhone || '',
+            specialRequests: booking.specialRequests || ''
+          });
+
+          // Fetch specific Room Details
+          try {
+            const roomRes = await axios.get('http://localhost:5000/api/rooms');
+            const myRoom = roomRes.data.find(r => r._id === booking.roomId);
+            if (myRoom) setRoomDetails(myRoom);
+          } catch (roomErr) {
+            console.error("Room fetch error:", roomErr);
+          }
+
+          // Rent Warning Logic
+          const currentDay = new Date().getDate();
+          const todayString = new Date().toDateString();
+          const lastDismissed = localStorage.getItem('rentWarningDismissedDate');
+
+          if (currentDay >= 25 && booking.monthlyRentStatus === 'Unpaid' && lastDismissed !== todayString) {
+            setShowWarning(true);
+          }
         }
-
-        setFormData({
-          nicNumber: booking.nicNumber || '',
-          emergencyContactName: booking.emergencyContactName || '',
-          emergencyContactPhone: booking.emergencyContactPhone || '',
-          specialRequests: booking.specialRequests || ''
-        });
-
-        try {
-          const roomRes = await axios.get('http://localhost:5000/api/rooms');
-          const myRoom = roomRes.data.find(r => r._id === booking.roomId);
-          if (myRoom) setRoomDetails(myRoom);
-        } catch (roomErr) {
-          console.error(roomErr);
-        }
-
-        const currentDay = new Date().getDate();
-        const todayString = new Date().toDateString();
-        const lastDismissed = localStorage.getItem('rentWarningDismissedDate');
-
-        if (currentDay >= 25 && booking.monthlyRentStatus === 'Unpaid' && lastDismissed !== todayString) {
-          setShowWarning(true);
-        } else {
-          setShowWarning(false);
-        }
-
       } catch (err) {
-        console.error(err);
+        // FIXED: Handle 404 gracefully (Student simply hasn't booked yet)
+        if (err.response && err.response.status === 404) {
+          console.log("No booking found for this student.");
+        } else {
+          console.error("Profile fetch error:", err);
+          toast.error("Failed to load profile data.");
+        }
       } finally {
         setLoading(false);
       }
     };
+
     fetchProfileData();
-  }, [userInfo, navigate]);
+  }, [userInfo?.email, navigate]); // Added userInfo.email to dependencies
 
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -92,10 +103,9 @@ const Profile = () => {
 
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (file && bookingData) {
       setProfilePicPreview(URL.createObjectURL(file)); 
       const submitData = new FormData();
-      Object.keys(formData).forEach(key => submitData.append(key, formData[key]));
       submitData.append('profileImage', file);
 
       try {
@@ -111,6 +121,8 @@ const Profile = () => {
         toast.dismiss('photo');
         toast.error('Failed to save picture.');
       }
+    } else if (!bookingData) {
+      toast.error("Please book a room first to set a profile picture.");
     }
   };
 
@@ -278,14 +290,13 @@ const Profile = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           <div className="space-y-8">
-            
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-24 bg-[#CBDDE9]/40 z-0"></div>
 
               <div className="relative z-10 flex flex-col items-center mt-4">
                 <div className="relative w-28 h-28 mb-4">
                   <div className="w-full h-full rounded-full bg-[#2872A1] text-white flex items-center justify-center text-5xl font-extrabold shadow-xl border-4 border-white overflow-hidden">
-                    {profilePicPreview ? <img src={profilePicPreview} alt="Profile" className="w-full h-full object-cover" /> : userInfo.name.charAt(0).toUpperCase()}
+                    {profilePicPreview ? <img src={profilePicPreview} alt="Profile" className="w-full h-full object-cover" /> : userInfo?.name?.charAt(0).toUpperCase()}
                   </div>
                   <button onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 w-9 h-9 bg-white rounded-full shadow-lg border border-gray-200 flex items-center justify-center text-[#2872A1] hover:bg-[#2872A1] hover:text-white hover:scale-110 transition-all z-20 cursor-pointer">
                     <Camera className="w-4 h-4" />
@@ -293,7 +304,7 @@ const Profile = () => {
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageChange} />
                 </div>
 
-                <h2 className="text-2xl font-bold text-gray-900">{userInfo.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{userInfo?.name}</h2>
                 <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-bold uppercase tracking-wider rounded-full mt-2 border border-emerald-100 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" /> Verified Student
                 </span>
@@ -302,39 +313,14 @@ const Profile = () => {
               <div className="mt-8 space-y-4">
                 <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl">
                   <Mail className="w-5 h-5 text-[#2872A1]" />
-                  <span className="text-sm font-medium">{userInfo.email}</span>
+                  <span className="text-sm font-medium">{userInfo?.email}</span>
                 </div>
                 <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl">
                   <Phone className="w-5 h-5 text-[#2872A1]" />
-                  <span className="text-sm font-medium">{userInfo.phone || 'Not provided'}</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-xl">
-                  <User className="w-5 h-5 text-[#2872A1]" />
-                  <span className="text-sm font-medium">{userInfo.gender || 'Not provided'}</span>
+                  <span className="text-sm font-medium">{userInfo?.phone || 'Not provided'}</span>
                 </div>
               </div>
             </motion.div>
-
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="relative rounded-3xl overflow-hidden shadow-lg group cursor-pointer"
-              onClick={() => navigate('/student/my-maintenance')}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-[#1f5a80] to-[#153e5c] z-0 transition-transform duration-500 group-hover:scale-105"></div>
-              <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors"></div>
-
-              <div className="relative z-10 p-8 flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform duration-300">
-                  <Wrench className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-white font-bold text-xl mb-2">Room Issue?</h3>
-                <p className="text-[#CBDDE9] text-sm mb-6">Request our maintenance team to fix AC, plumbing, or furniture issues.</p>
-                <div className="bg-white text-[#1f5a80] px-6 py-2.5 rounded-full text-sm font-bold shadow-md group-hover:shadow-xl transition-shadow flex items-center gap-2">
-                  Request Maintenance
-                </div>
-              </div>
-            </motion.div>
-
           </div>
 
           <div className="lg:col-span-2 space-y-8">
@@ -402,7 +388,7 @@ const Profile = () => {
                           onClick={handleMonthlyPayment}
                           className="bg-[#2872A1] hover:bg-[#1f5a80] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
                         >
-                          Pay in Advance
+                          Pay Monthly rent
                         </button>
                       </div>
                     </div>
@@ -421,7 +407,6 @@ const Profile = () => {
                             </div>
                             <div>
                               <p className="font-bold text-gray-800 text-sm">{mate.studentName}</p>
-                              <p className="text-xs text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" /> {mate.emergencyContactPhone || 'No phone'}</p>
                             </div>
                           </div>
                         ))}
@@ -442,15 +427,10 @@ const Profile = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-400 uppercase mb-1">NIC / Passport</p><p className="font-semibold text-gray-800">{bookingData.nicNumber}</p></div>
                       <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-400 uppercase mb-1">Move-in Date</p><p className="font-semibold text-gray-800 flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-500" />{new Date(bookingData.expectedMoveInDate).toLocaleDateString()}</p></div>
-                      <div className="bg-red-50 p-5 rounded-2xl border border-red-100 md:col-span-2"><p className="text-xs font-bold text-red-400 uppercase mb-1">Emergency Contact</p><div className="flex justify-between items-center"><p className="font-bold text-gray-800">{bookingData.emergencyContactName}</p><p className="font-bold text-red-600">{bookingData.emergencyContactPhone}</p></div></div>
                     </div>
                   ) : (
                     <form onSubmit={handleUpdateInfo} className="space-y-5">
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">NIC / Passport</label><input type="text" name="nicNumber" value={formData.nicNumber} onChange={handleInputChange} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none" required /></div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Emergency Name</label><input type="text" name="emergencyContactName" value={formData.emergencyContactName} onChange={handleInputChange} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl" required /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Emergency Phone</label><input type="text" name="emergencyContactPhone" value={formData.emergencyContactPhone} onChange={handleInputChange} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl" required /></div>
-                      </div>
                       <button type="submit" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-white bg-[#2872A1] hover:bg-[#1f5a80]">Save Changes</button>
                     </form>
                   )}
