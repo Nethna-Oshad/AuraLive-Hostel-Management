@@ -23,7 +23,7 @@ const MealDashboard = () => {
     }
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState(todayDate);
   const [slots, setSlots] = useState([]);
   const [hasThirdPartyShops, setHasThirdPartyShops] = useState(false);
   const [allFull, setAllFull] = useState(false);
