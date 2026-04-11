@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -23,21 +23,15 @@ const ThirdPartyMealDashboard = () => {
     }
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState('');
-  const [slots, setSlots] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(todayDate);
   const [shops, setShops] = useState([]);
   const [allFull, setAllFull] = useState(false);
   const [studentBookings, setStudentBookings] = useState([]);
   const [showAllBookings, setShowAllBookings] = useState(false); // State for toggling visible bookings
   const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(new Date());
-
-  const [externalForm, setExternalForm] = useState({
-    shopName: '',
-    menuItem: '',
-    slotId: '',
-    notes: '',
-  });
+  const [selectedShop, setSelectedShop] = useState(null);
+  const [shopMenuItems, setShopMenuItems] = useState([]);
+  const [menuLoading, setMenuLoading] = useState(false);
 
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'Student') {
@@ -45,35 +39,21 @@ const ThirdPartyMealDashboard = () => {
     }
   }, [userInfo, navigate]);
 
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const isSlotTimePassed = (timeRange, date) => {
-    if (!timeRange || !date || date !== todayDate) return false;
-    const startPart = timeRange.split('-')[0]?.trim();
-    const match = startPart?.match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return false;
-    const hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    const slotStart = new Date(now);
-    slotStart.setHours(hours, minutes, 0, 0);
-    return now >= slotStart;
-  };
-
-  const fetchSlots = async () => {
+  const fetchShops = async () => {
     if (!selectedDate) {
-      setSlots([]);
       setShops([]);
       setAllFull(false);
       return;
     }
     const response = await axios.get(`http://localhost:5000/api/meals/slots?date=${selectedDate}`);
-    setSlots(response.data.slots || []);
     setShops(response.data.thirdPartyShops || []);
     setAllFull(response.data.isAllSlotsFull || false);
   };
+
+  const shopLogoSrc = (shop) =>
+    shop?.logoUrl?.trim()
+      ? shop.logoUrl
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(shop?.name || 'Shop')}&background=E0F2FE&color=1E3A8A&size=128&bold=true`;
 
   const fetchMyMealBookings = async () => {
     const response = await axios.get(`http://localhost:5000/api/meals/student/${userInfo.email}`);
@@ -88,9 +68,8 @@ const ThirdPartyMealDashboard = () => {
       try {
         setLoading(true);
         if (selectedDate) {
-          await Promise.all([fetchSlots(), fetchMyMealBookings()]);
+          await Promise.all([fetchShops(), fetchMyMealBookings()]);
         } else {
-          setSlots([]);
           setShops([]);
           setAllFull(false);
           await fetchMyMealBookings();
@@ -105,31 +84,42 @@ const ThirdPartyMealDashboard = () => {
     loadData();
   }, [selectedDate, userInfo]);
 
-  const handleExternalOrder = async (e) => {
-    e.preventDefault();
+  const openShopMenu = async (shop) => {
+    setSelectedShop(shop);
+    setShopMenuItems([]);
+    setMenuLoading(true);
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/api/meals/public/menu?supplierName=${encodeURIComponent(shop.name)}`
+      );
+      setShopMenuItems(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to load menu items.');
+    } finally {
+      setMenuLoading(false);
+    }
+  };
+
+  const closeShopMenu = () => {
+    setSelectedShop(null);
+    setShopMenuItems([]);
+  };
+
+  const handleMenuOrder = async (shopName, menuItem) => {
     if (!selectedDate) {
       toast.error('Please select a date first.');
       return;
-    }
-    if (externalForm.slotId) {
-      const selectedSlot = slots.find((slot) => slot.id === externalForm.slotId);
-      if (selectedSlot && isSlotTimePassed(selectedSlot.timeRange, selectedDate)) {
-        toast.error('Selected slot time has passed. Please choose an upcoming slot.');
-        return;
-      }
     }
     try {
       await axios.post('http://localhost:5000/api/meals/order-external', {
         studentEmail: userInfo.email,
         studentName: userInfo.name,
         bookingDate: selectedDate,
-        shopName: externalForm.shopName,
-        menuItem: externalForm.menuItem,
-        slotId: externalForm.slotId || undefined,
-        notes: externalForm.notes,
+        shopName,
+        menuItem,
       });
       toast.success('External meal order request created.');
-      setExternalForm({ shopName: '', menuItem: '', slotId: '', notes: '' });
+      closeShopMenu();
       await fetchMyMealBookings();
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to create order.');
@@ -149,7 +139,7 @@ const ThirdPartyMealDashboard = () => {
     try {
       await axios.patch(`http://localhost:5000/api/meals/${bookingId}/cancel`);
       toast.success('Meal order cancelled.');
-      await Promise.all([fetchSlots(), fetchMyMealBookings()]);
+      await Promise.all([fetchShops(), fetchMyMealBookings()]);
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to cancel order.');
     }
@@ -340,81 +330,25 @@ const ThirdPartyMealDashboard = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {shops.map((shop) => (
-                <div key={shop.name} className="border border-blue-100 bg-gradient-to-br from-blue-50 to-white rounded-2xl p-4 hover:shadow-md transition-all">
-                  <h3 className="font-bold text-gray-800">{shop.name}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{shop.cuisine}</p>
-                  <p className="text-xs font-semibold text-[#2872A1] mt-2">ETA: {shop.eta}</p>
-                  <p className="text-xs font-bold text-gray-700 mt-1">From Rs. {shop.basePrice}</p>
-                </div>
+                <button
+                  key={shop.name}
+                  type="button"
+                  onClick={() => openShopMenu(shop)}
+                  className="text-center border border-blue-100 bg-gradient-to-br from-blue-50 to-white rounded-2xl p-6 hover:shadow-md transition-all hover:-translate-y-0.5"
+                >
+                  <div className="flex flex-col items-center gap-4">
+                    <img
+                      src={shopLogoSrc(shop)}
+                      alt={`${shop.name} logo`}
+                      className="w-24 h-24 rounded-full border-2 border-blue-200 object-cover shadow-sm"
+                    />
+                    <h3 className="text-2xl font-extrabold text-gray-800 leading-tight">{shop.name}</h3>
+                  </div>
+                  <p className="text-sm font-semibold text-[#2872A1] mt-4">ETA: {shop.eta}</p>
+                </button>
               ))}
             </div>
-
-            <form onSubmit={handleExternalOrder} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 rounded-2xl border border-gray-100 p-5">
-              <select
-                id="external-shop"
-                name="shopName"
-                value={externalForm.shopName}
-                onChange={(e) => setExternalForm((prev) => ({ ...prev, shopName: e.target.value }))}
-                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
-                required
-              >
-                <option value="">Select Meal Shop</option>
-                {shops.map((shop) => (
-                  <option key={shop.name} value={shop.name}>
-                    {shop.name} (Rs. {shop.basePrice})
-                  </option>
-                ))}
-              </select>
-
-              <input
-                id="external-menu-item"
-                name="menuItem"
-                type="text"
-                placeholder="Meal item (e.g., Chicken Kottu)"
-                value={externalForm.menuItem}
-                onChange={(e) => setExternalForm((prev) => ({ ...prev, menuItem: e.target.value }))}
-                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
-                required
-              />
-
-              <select
-                id="external-slot"
-                name="slotId"
-                value={externalForm.slotId}
-                onChange={(e) => setExternalForm((prev) => ({ ...prev, slotId: e.target.value }))}
-                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
-                disabled={!selectedDate}
-              >
-                <option value="">Optional preferred slot window</option>
-                {slots.map((slot) => (
-                  <option key={slot.id} value={slot.id} disabled={isSlotTimePassed(slot.timeRange, selectedDate)}>
-                    {slot.label} ({slot.timeRange}){isSlotTimePassed(slot.timeRange, selectedDate) ? ' - Time passed' : ''}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                id="external-notes"
-                name="notes"
-                type="text"
-                placeholder="Notes (optional)"
-                value={externalForm.notes}
-                onChange={(e) => setExternalForm((prev) => ({ ...prev, notes: e.target.value }))}
-                className="p-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-[#2872A1]"
-              />
-
-              <button
-                type="submit"
-                disabled={!selectedDate}
-                className={`md:col-span-2 py-3 rounded-xl font-bold transition-all ${
-                  !selectedDate
-                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                    : 'bg-[#2872A1] text-white hover:bg-[#1f5a80] hover:shadow-lg'
-                }`}
-              >
-                {!selectedDate ? 'Select Date First' : 'Place External Meal Order'}
-              </button>
-            </form>
+            <p className="text-sm text-gray-500">Tap a shop card to view available menu items and place your order.</p>
           </div>
         ) : (
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
@@ -530,6 +464,66 @@ const ThirdPartyMealDashboard = () => {
           )}
         </div>
       </div>
+
+      {selectedShop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-gray-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <img
+                  src={shopLogoSrc(selectedShop)}
+                  alt={`${selectedShop.name} logo`}
+                  className="w-10 h-10 rounded-full border border-blue-200 object-cover"
+                />
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">{selectedShop.name}</h3>
+                  <p className="text-xs text-gray-500">Available menu items</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeShopMenu}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                aria-label="Close menu popup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {menuLoading ? (
+                <p className="text-gray-500">Loading menu...</p>
+              ) : shopMenuItems.length === 0 ? (
+                <p className="text-gray-500">No available menu items for this shop right now.</p>
+              ) : (
+                <div className="space-y-3">
+                  {shopMenuItems.map((item) => (
+                    <div key={`${item.itemName}-${item._id || item.category}`} className="border border-gray-100 rounded-xl p-4 bg-gray-50">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-bold text-gray-900">{item.itemName}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{item.category || 'Main'} • {item.prepTimeMinutes || 30} min</p>
+                          {item.description && <p className="text-sm text-gray-600 mt-2">{item.description}</p>}
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-[#2872A1]">Rs. {item.price || selectedShop.basePrice}</p>
+                          <button
+                            type="button"
+                            onClick={() => handleMenuOrder(selectedShop.name, item.itemName)}
+                            className="mt-2 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#2872A1] text-white hover:bg-[#1f5a80]"
+                          >
+                            Order Item
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

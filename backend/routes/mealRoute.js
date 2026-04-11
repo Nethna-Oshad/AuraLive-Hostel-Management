@@ -18,10 +18,17 @@ const {
   getSupplierOrders,
   getSupplierSummary,
   getSupplierMenuItems,
+  getPublicShopMenuItems,
   createSupplierMenuItem,
   updateSupplierMenuItem,
   deleteSupplierMenuItem,
   updateSupplierDeliveryStatus,
+  getAdminMealSuppliers,
+  createAdminMealSupplier,
+  updateAdminMealSupplier,
+  deleteAdminMealSupplier,
+  getAdminAllMenuItems,
+  getAdminMealHubStats,
 } = require('../controllers/mealController');
 
 router.get('/slots', getKitchenSlots);
@@ -42,8 +49,16 @@ router.get('/supplier/orders', getSupplierOrders);
 router.patch('/supplier/orders/:id/delivery-status', updateSupplierDeliveryStatus);
 router.get('/supplier/summary', getSupplierSummary);
 router.get('/supplier/menu', getSupplierMenuItems);
+router.get('/public/menu', getPublicShopMenuItems);
 router.post('/supplier/menu', createSupplierMenuItem);
 router.put('/supplier/menu/:id', updateSupplierMenuItem);
 router.delete('/supplier/menu/:id', deleteSupplierMenuItem);
+
+router.get('/admin/suppliers', getAdminMealSuppliers);
+router.post('/admin/suppliers', createAdminMealSupplier);
+router.put('/admin/suppliers/:id', updateAdminMealSupplier);
+router.delete('/admin/suppliers/:id', deleteAdminMealSupplier);
+router.get('/admin/menu-items', getAdminAllMenuItems);
+router.get('/admin/hub-stats', getAdminMealHubStats);
 
 module.exports = router;

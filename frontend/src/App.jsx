@@ -14,6 +14,8 @@ import AdminDashboard from './pages/Admin/AdminDashboard';
 import ManageStudents from './pages/Admin/ManageStudents';
 import ManageLaundry from './pages/Admin/ManageLaundry';
 import ManageMeals from './pages/Admin/ManageMeals';
+import ManageKitchenMeals from './pages/Admin/ManageKitchenMeals';
+import ManageThirdPartyMeals from './pages/Admin/ManageThirdPartyMeals';
 import ManageMaintainers from './pages/Admin/ManageMaintainers';
 import ManageMaintenance from './pages/Admin/ManageMaintenance';
 import ManagePayments from './pages/Admin/ManagePayments'; // <--- Kept only one
@@ -103,6 +105,8 @@ function App() {
         <Route path="/admin/students" element={<ManageStudents />} />
         <Route path="/admin/laundry" element={<ManageLaundry />} />
         <Route path="/admin/meals" element={<ManageMeals />} />
+        <Route path="/admin/meals/kitchen" element={<ManageKitchenMeals />} />
+        <Route path="/admin/meals/third-party" element={<ManageThirdPartyMeals />} />
         <Route path="/admin/maintainers" element={<ManageMaintainers />} />
         <Route path="/admin/maintenance" element={<ManageMaintenance />} />
         <Route path="/admin/payments" element={<ManagePayments />} />
