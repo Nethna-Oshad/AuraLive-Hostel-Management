@@ -16,7 +16,8 @@ const Booking = require('./models/bookingModel'); // <--- NEW: Need this to upda
 const authRoutes = require('./routes/authRoute'); 
 const roomRoutes = require('./routes/roomRoute');
 const bookingRoutes = require('./routes/bookingRoute'); 
-
+const reviewRoutes = require('./routes/reviewRoutes');
+const contactRoutes = require('./routes/contactRoutes');
 // Added for Maintenance Feature (My Part)
 const maintenanceRoutes = require('./routes/maintenanceRoute'); 
 // -------------------------------------
@@ -100,6 +101,8 @@ app.use('/api/invoices', invoiceRoutes);
 
 // Static folder for Profile Pictures
 app.use('/Studentprofile', express.static('Studentprofile'));
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Basic Health Check Route
 app.get('/', (req, res) => {

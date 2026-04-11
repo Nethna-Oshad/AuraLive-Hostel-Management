@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 // I have merged ALL imports into this single line. Do not duplicate this!
-import { LayoutDashboard, BedDouble, Users, Shirt, Utensils, Wrench, LogOut, ClipboardList, DollarSign } from 'lucide-react';
+import { LayoutDashboard, BedDouble, Users, Shirt, Utensils, Wrench, LogOut, ClipboardList, DollarSign, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const AdminSidebar = () => {
@@ -53,6 +53,12 @@ const AdminSidebar = () => {
         </Link>
 
         <div className="pt-6 pb-2 px-4 text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">User Management</div>
+
+        {/* NEW: Support Messages Link */}
+        <Link to="/admin/messages" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/messages')}`}>
+          <MessageSquare className="w-5 h-5 shrink-0" />
+          <span className="text-sm tracking-wide">Support Messages</span>
+        </Link>
 
         <Link to="/admin/students" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/students')}`}>
           <Users className="w-5 h-5 shrink-0" />

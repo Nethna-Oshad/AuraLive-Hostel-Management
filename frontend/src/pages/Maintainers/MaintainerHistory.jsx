@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MaintainersSidebar from './MaintainersSidebar';
 import MaintainersNavbar from './MaintainersNavbar';
-import { CheckCircle2, History, User, Calendar } from 'lucide-react';
+import { History, User } from 'lucide-react';
 
 const MaintainerHistory = () => {
   const [history, setHistory] = useState([]);
@@ -15,13 +15,16 @@ const MaintainerHistory = () => {
         const data = await res.json();
         if (res.ok) {
           // ඉවර කරපු වැඩ (Resolved) විතරක් ගන්නවා
-          setHistory(data.filter(t => t.status === 'Resolved'));
+          setHistory(data.filter(t => t.status === 'Resolved' || t.status === 'Closed'));
         }
-      } catch (err) { console.log(err); }
-      finally { setLoading(false); }
+      } catch (err) { 
+        console.log(err); 
+      } finally { 
+        setLoading(false); 
+      }
     };
-    fetchHistory();
-  }, []);
+    if (userInfo._id) fetchHistory();
+  }, [userInfo._id]);
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -48,7 +51,9 @@ const MaintainerHistory = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {history.length === 0 ? (
+                  {loading ? (
+                    <tr><td colSpan="4" className="p-20 text-center text-gray-400 font-bold animate-pulse">Loading...</td></tr>
+                  ) : history.length === 0 ? (
                     <tr><td colSpan="4" className="p-20 text-center text-gray-400 font-bold">No history records found.</td></tr>
                   ) : (
                     history.map((item) => (
