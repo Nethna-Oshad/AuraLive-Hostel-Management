@@ -15,6 +15,7 @@ import ManageMeals from './pages/Admin/ManageMeals';
 import ManageMaintainers from './pages/Admin/ManageMaintainers';
 import ManageMaintenance from './pages/Admin/ManageMaintenance';
 import ManagePayments from './pages/Admin/ManagePayments'; 
+import AdminMessages from './pages/Admin/AdminMessages';
 
 import ManageRooms from './pages/Room/ManageRooms';
 import RoomDetails from './pages/Room/RoomDetails'; 
@@ -57,6 +58,7 @@ import TermsOfService from './Company/TermsOfService';
 import HelpCenter from './Company/HelpCenter'; 
 import Services from './Company/Services';
 
+
 const StudentLayout = ({ children }) => {
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
   const showChatbot = !userInfo || userInfo.role === 'Student';
@@ -93,6 +95,7 @@ function App() {
         <Route path="/admin/maintainers" element={<ManageMaintainers />} />
         <Route path="/admin/maintenance" element={<ManageMaintenance />} />
         <Route path="/admin/payments" element={<ManagePayments />} />
+        <Route path="/admin/messages" element={<AdminMessages />} />
 
         <Route path="/admin/rooms" element={<ManageRooms />} />
         <Route path="/book/:id" element={<StudentLayout><RoomDetails /></StudentLayout>} />
