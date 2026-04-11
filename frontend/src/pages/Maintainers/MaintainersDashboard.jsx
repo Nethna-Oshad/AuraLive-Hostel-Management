@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import MaintainersSidebar from './MaintainersSidebar';
 import MaintainersNavbar from './MaintainersNavbar';
 import { 
@@ -6,9 +6,9 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle, 
-  ArrowRight,
   User,
-  MapPin
+  MapPin,
+  PlayCircle // Start button icon
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -16,17 +16,12 @@ const MaintainersDashboard = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // LocalStorage එකෙන් දැනට log වෙලා ඉන්න Maintainer ගේ info ගන්නවා
   const userInfo = JSON.parse(localStorage.getItem('userInfo')) || {};
 
-  useEffect(() => {
-    fetchMaintenanceRequests();
-  }, []);
-
-  const fetchMaintenanceRequests = async () => {
+  // useCallback පාවිච්චි කළා dependency warning එක නැති කරන්න
+  const fetchMaintenanceRequests = useCallback(async () => {
     try {
       setLoading(true);
-      // මෙතන API එක ඔයාගේ backend එකේ හැටියට වෙනස් කරගන්න (उदा: /api/maintenance/partner/:id)
       const response = await fetch(`http://localhost:5000/api/maintenance/partner/${userInfo._id}`);
       const data = await response.json();
       
@@ -39,12 +34,46 @@ const MaintainersDashboard = () => {
     } finally {
       setLoading(false);
     }
+  }, [userInfo._id]);
+
+  useEffect(() => {
+    fetchMaintenanceRequests();
+  }, [fetchMaintenanceRequests]);
+
+  // Dashboard එකේ ඉඳන්ම Status මාරු කරන Function එක
+  const handleUpdateStatus = async (taskId, newStatus) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/maintenance/update/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        toast.success(`Task successfully updated to ${newStatus}!`);
+        fetchMaintenanceRequests(); // List එක Refresh කරනවා
+      } else {
+        const errData = await response.json();
+        toast.error(errData.message || "Status update failed");
+      }
+    } catch (error) {
+      // මෙතන අර 'error is defined but never used' කියන එක හැදුවා
+      console.error("Update Status Error:", error); 
+      toast.error("Server connection failed");
+    }
   };
 
-  // Metrics Calculation
-  const newAssignments = requests.filter(r => r.status === 'Pending').length;
-  const inProgress = requests.filter(r => r.status === 'In Progress').length;
-  const resolvedToday = requests.filter(r => r.status === 'Resolved').length;
+  // Status Counts
+  const newAssignments = requests.filter(r => {
+    const s = (r.status || '').toLowerCase();
+    return s === 'pending' || s === 'assigned';
+  }).length;
+  
+  const inProgress = requests.filter(r => (r.status || '').toLowerCase() === 'in progress').length;
+  const resolvedToday = requests.filter(r => {
+    const s = (r.status || '').toLowerCase();
+    return s === 'resolved' || s === 'closed';
+  }).length;
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC] font-sans">
@@ -59,10 +88,9 @@ const MaintainersDashboard = () => {
             <h2 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
               <Wrench className="text-[#2872A1]" /> Maintainer Dashboard
             </h2>
-            <p className="text-gray-500 font-medium mt-1">Manage and update student maintenance requests.</p>
+            <p className="text-gray-500 font-medium mt-1">Manage and update student maintenance requests directly.</p>
           </div>
 
-          {/* Metrics Section */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3 mb-10">
             <div className="p-6 bg-white border border-gray-100 shadow-sm rounded-[2rem] transition-all hover:shadow-md border-l-4 border-l-emerald-500">
               <div className="flex justify-between items-start mb-4">
@@ -97,7 +125,6 @@ const MaintainersDashboard = () => {
             </div>
           </div>
 
-          {/* Recent Tasks List */}
           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
               <h3 className="font-black text-gray-800 uppercase tracking-tighter">Current Tasks</h3>
@@ -113,40 +140,70 @@ const MaintainersDashboard = () => {
                   <p className="text-gray-400 font-bold">No tasks assigned to you yet.</p>
                 </div>
               ) : (
-                requests.map((task) => (
-                  <div key={task._id} className="p-6 hover:bg-gray-50/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                        task.status === 'Pending' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                      }`}>
-                        <AlertCircle className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-gray-800 text-lg leading-tight">{task.issueType}</h4>
-                        <div className="flex flex-wrap items-center gap-3 mt-1">
-                          <span className="text-xs font-bold text-gray-400 flex items-center gap-1 uppercase tracking-tighter">
-                            <User className="w-3 h-3" /> {task.studentId?.name || 'Student'}
-                          </span>
-                          <span className="text-xs font-bold text-[#2872A1] flex items-center gap-1 uppercase tracking-tighter">
-                            <MapPin className="w-3 h-3" /> Room: {task.roomNumber || 'N/A'}
-                          </span>
+                requests
+                  .filter(t => {
+                    const s = (t.status || '').toLowerCase();
+                    return s !== 'resolved' && s !== 'closed'; // Resolved ඒව අයින් කරනවා
+                  })
+                  .map((task) => {
+                    // කැපිටල් සිම්පල් මොක තිබ්බත් අඳුරගන්න logic එක හැදුවා
+                    const currentStatus = (task.status || 'Pending').toLowerCase();
+                    const isPendingOrAssigned = currentStatus === 'pending' || currentStatus === 'assigned';
+                    const isInProgress = currentStatus === 'in progress';
+
+                    return (
+                      <div key={task._id} className="p-6 hover:bg-gray-50/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                            isPendingOrAssigned ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
+                          }`}>
+                            <AlertCircle className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h4 className="font-black text-gray-800 text-lg leading-tight">{task.issueType}</h4>
+                            <div className="flex flex-wrap items-center gap-3 mt-1">
+                              <span className="text-xs font-bold text-gray-400 flex items-center gap-1 uppercase tracking-tighter">
+                                <User className="w-3 h-3" /> {task.studentId?.name || 'Student'}
+                              </span>
+                              <span className="text-xs font-bold text-[#2872A1] flex items-center gap-1 uppercase tracking-tighter">
+                                <MapPin className="w-3 h-3" /> Room: {task.roomNumber || 'N/A'}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-2 italic font-medium">"{task.description}"</p>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-500 mt-2 italic font-medium">"{task.description}"</p>
+                        
+                        <div className="flex items-center gap-3 self-end md:self-center">
+                          <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                            isPendingOrAssigned ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-50 text-blue-600 border-blue-100'
+                          }`}>
+                            {task.status || 'Pending'}
+                          </span>
+                          
+                          {/* 👇 මෙන්න අලුත් Buttons ටික */}
+                          
+                          {isPendingOrAssigned && (
+                            <button 
+                              onClick={() => handleUpdateStatus(task._id, 'In Progress')} 
+                              className="bg-[#2872A1] text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase shadow-md hover:bg-[#1e567a] flex items-center gap-1.5 transition-all active:scale-95"
+                            >
+                              <PlayCircle className="w-4 h-4" /> Start
+                            </button>
+                          )}
+
+                          {isInProgress && (
+                            <button 
+                              onClick={() => handleUpdateStatus(task._id, 'Resolved')} 
+                              className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase shadow-md hover:bg-emerald-700 flex items-center gap-1.5 transition-all active:scale-95 tracking-widest"
+                            >
+                              <CheckCircle2 className="w-4 h-4" /> Complete
+                            </button>
+                          )}
+
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 self-end md:self-center">
-                       <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                         task.status === 'Pending' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                       }`}>
-                         {task.status}
-                       </span>
-                       <button className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-400 hover:text-[#2872A1] hover:border-[#2872A1] transition-all">
-                         <ArrowRight className="w-5 h-5" />
-                       </button>
-                    </div>
-                  </div>
-                ))
+                    );
+                  })
               )}
             </div>
           </div>
