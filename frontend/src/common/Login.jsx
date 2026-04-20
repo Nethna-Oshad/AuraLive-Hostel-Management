@@ -1,26 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [stats, setStats] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // NEW: Form loading state
   const navigate = useNavigate();
 
   // Fetch stats when the page loads
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchStats = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/auth/stats');
         if (response.ok) {
           const data = await response.json();
-          setStats(data);
+          if (isMounted) setStats(data);
         }
       } catch (err) {
         console.error("Failed to fetch system stats", err);
       }
     };
+    
     fetchStats();
+    return () => { isMounted = false; };
   }, []);
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -28,6 +35,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true); // Start button spinner
 
     try {
       const response = await fetch('http://localhost:5000/api/auth/login', {
@@ -51,121 +59,146 @@ const Login = () => {
       
     } catch (err) {
       setError(err.message);
+      setIsSubmitting(false); // Stop spinner on error
     }
   };
 
-  // Helper component to render a beautiful stat card
+  // Helper component to render a beautiful frosted-glass stat card
   const StatCard = ({ title, icon, data }) => (
-    <div className="bg-white/10 backdrop-blur-md border border-[#CBDDE9]/20 p-5 rounded-2xl shadow-xl hover:bg-white/20 transition-all duration-300">
+    <div className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl shadow-lg hover:bg-white/20 transition-all duration-300">
       <div className="flex items-center gap-3 mb-4">
-        <span className="text-2xl">{icon}</span>
-        <h3 className="text-white font-semibold text-lg">{title}</h3>
+        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shadow-inner">
+          {icon}
+        </div>
+        <h3 className="text-white font-bold tracking-wide">{title}</h3>
       </div>
+      
       {data ? (
-        <div className="flex justify-between items-end">
+        <div className="flex justify-between items-end animate-in fade-in duration-500">
           <div>
-            <p className="text-[#CBDDE9] text-xs uppercase tracking-wider font-bold mb-1">Total</p>
-            <p className="text-3xl font-bold text-white">{data.total}</p>
+            <p className="text-gray-300 text-[10px] uppercase tracking-widest font-extrabold mb-1">Total</p>
+            <p className="text-3xl font-extrabold text-white leading-none">{data.total}</p>
           </div>
-          <div className="flex flex-col gap-2 text-right">
-            <span className="bg-[#CBDDE9]/20 text-white border border-[#CBDDE9]/40 px-3 py-1 rounded-full text-xs font-bold">
+          <div className="flex flex-col gap-1.5 text-right">
+            <span className="bg-emerald-500/20 text-emerald-100 border border-emerald-400/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
               {data.active} Active
             </span>
-            <span className="bg-red-500/30 text-red-100 border border-red-500/40 px-3 py-1 rounded-full text-xs font-bold">
-              {data.inactive} Pending
+            <span className="bg-orange-500/20 text-orange-100 border border-orange-400/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
+              {data.inactive || data.pending || 0} Pending
             </span>
           </div>
         </div>
       ) : (
-        <div className="animate-pulse flex space-x-4 h-12 items-center text-[#CBDDE9] text-sm">
-          Loading data...
+        /* NEW: Beautiful Skeleton Loaders instead of text */
+        <div className="flex justify-between items-end animate-pulse">
+          <div className="space-y-2">
+            <div className="h-2.5 w-10 bg-white/20 rounded-full"></div>
+            <div className="h-8 w-16 bg-white/20 rounded-lg"></div>
+          </div>
+          <div className="flex flex-col gap-2 text-right">
+            <div className="h-5 w-20 bg-white/20 rounded-full"></div>
+            <div className="h-5 w-20 bg-white/20 rounded-full"></div>
+          </div>
         </div>
       )}
     </div>
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-50 font-sans">
+    <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
       
-      {/* Left Side: System Statistics (Hidden on small screens) */}
-      {/* Using your primary color #2872A1 as the main background */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#2872A1] p-12 flex-col justify-center relative overflow-hidden">
-        
-        {/* Decorative background circles using your light color #CBDDE9 */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 opacity-20 pointer-events-none">
-          <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#CBDDE9] blur-3xl"></div>
-          <div className="absolute bottom-10 right-10 w-80 h-80 rounded-full bg-[#CBDDE9] blur-3xl"></div>
-        </div>
+      {/* Left Side: System Statistics & Beautiful Image */}
+      <div 
+        className="hidden lg:flex lg:w-1/2 relative flex-col justify-center p-12 bg-cover bg-center"
+        style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80")' }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a192f]/95 via-[#1f5a80]/85 to-[#2872A1]/70 z-0"></div>
 
-        <div className="relative z-10 max-w-lg mx-auto w-full">
-          <h1 className="text-4xl font-extrabold text-white mb-2">
+        <div className="relative z-10 max-w-lg w-full mx-auto">
+          <h1 className="text-5xl font-extrabold text-white mb-4 tracking-tight drop-shadow-lg">
             Aura<span className="text-[#CBDDE9]">Live</span> Network
           </h1>
-          <p className="text-[#CBDDE9] mb-10 text-lg">
-            Join our growing ecosystem of students and trusted service providers.
+          <p className="text-gray-200 mb-12 text-lg font-medium drop-shadow-md leading-relaxed">
+            Join our premium ecosystem of modern student accommodations and trusted service providers.
           </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <StatCard title="Students" icon="🎓" data={stats?.students} />
-            <StatCard title="Laundry" icon="👕" data={stats?.laundry} />
-            <StatCard title="Meals" icon="🍲" data={stats?.meals} />
-            <StatCard title="Maintenance" icon="🔧" data={stats?.maintainers} />
-          </div>
+         
         </div>
       </div>
 
       {/* Right Side: Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
-        <div className="w-full max-w-md p-8 bg-white border border-gray-100 shadow-2xl shadow-[#CBDDE9]/40 rounded-3xl">
-          <div className="mb-8 text-center">
-            {/* Show Logo on mobile only since desktop has it on the left */}
-            <h2 className="text-3xl font-extrabold text-gray-900 lg:hidden mb-2">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative">
+        <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-[#CBDDE9]/40 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="w-full max-w-md p-10 bg-white border border-gray-100 shadow-2xl shadow-[#CBDDE9]/20 rounded-[2rem] relative z-10">
+          <div className="mb-10 text-center">
+            <h2 className="text-4xl font-extrabold text-gray-900 lg:hidden mb-2">
               Aura<span className="text-[#2872A1]">Live</span>
             </h2>
-            <h2 className="text-2xl font-bold text-gray-800 hidden lg:block">Welcome Back</h2>
-            <p className="mt-2 text-sm text-gray-500">Sign in to your account to continue</p>
+            <h2 className="text-3xl font-extrabold text-gray-900 hidden lg:block tracking-tight">Welcome Back</h2>
+            <p className="mt-3 text-sm text-gray-500 font-medium">Sign in to your account to continue</p>
           </div>
 
-          {error && <div className="p-4 mb-6 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl font-medium">{error}</div>}
+          {error && (
+            <div className="p-4 mb-6 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Email Address</label>
               <input 
                 type="email" 
                 name="email" 
                 required 
                 onChange={handleChange} 
-                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] focus:border-[#2872A1] focus:bg-white outline-none transition-all" 
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] focus:bg-white outline-none transition-all text-gray-800 font-medium" 
                 placeholder="Enter your email" 
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
-              <input 
-                type="password" 
-                name="password" 
-                required 
-                onChange={handleChange} 
-                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] focus:border-[#2872A1] focus:bg-white outline-none transition-all" 
-                placeholder="••••••••" 
-              />
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Password</label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  name="password" 
+                  required 
+                  onChange={handleChange} 
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2872A1] focus:bg-white outline-none transition-all text-gray-800 font-medium pr-12" 
+                  placeholder="••••••••" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#2872A1] transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             <button 
               type="submit" 
-              className="w-full py-4 mt-4 font-bold text-white transition-all bg-[#2872A1] rounded-xl shadow-lg shadow-[#CBDDE9] hover:bg-[#1f5a80] hover:shadow-xl hover:-translate-y-0.5"
+              disabled={isSubmitting}
+              className="w-full py-4 mt-4 font-extrabold text-white transition-all bg-[#2872A1] rounded-xl shadow-lg shadow-[#CBDDE9] hover:bg-[#1f5a80] active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed"
             >
-              Sign In to Dashboard
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" /> Authenticating...
+                </>
+              ) : (
+                "Sign In to Dashboard"
+              )}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-            <p className="text-sm text-gray-600">
+          <div className="mt-8 pt-8 border-t border-gray-100 text-center">
+            <p className="text-sm text-gray-500 font-medium">
               New to AuraLive? <br className="lg:hidden" />
-              <Link to="/register" className="font-bold text-[#2872A1] hover:text-[#1f5a80] hover:underline ml-1">
-                Register as a Student
+              <Link to="/register" className="font-extrabold text-[#2872A1] hover:text-[#1f5a80] transition-colors ml-1">
+                Create an account
               </Link>
             </p>
           </div>

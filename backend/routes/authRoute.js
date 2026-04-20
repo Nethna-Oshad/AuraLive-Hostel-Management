@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { 
   loginUser, registerStudent, registerAdmin, registerLaundry, registerMaintainer, registerMealSupplier,
-  getAllStudents, getAllLaundry, getAllMaintainers, getAllMeals, updateUserStatus 
+  getAllStudents, getAllLaundry, getAllMaintainers, getAllMeals, updateUserStatus, getStats
 } = require('../controllers/authController');
 
 // Auth Routes
@@ -19,5 +19,8 @@ router.get('/laundry', getAllLaundry);
 router.get('/maintainers', getAllMaintainers);
 router.get('/meals', getAllMeals);
 router.put('/update-status', updateUserStatus);
+
+// Stats Route
+router.get('/stats', getStats);
 
 module.exports = router;

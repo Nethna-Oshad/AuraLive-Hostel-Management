@@ -1,94 +1,247 @@
 const Booking = require('../models/bookingModel');
+const MealBooking = require('../models/mealBookingModel');
 const Room = require('../models/roomModel');
+const Invoice = require('../models/invoiceModel');
+const Student = require('../models/studentModel'); 
 
-// @desc    Create Stripe Checkout Session
-// @route   POST /api/payment/create-checkout-session
+// ==========================================
+// 1. INITIAL DEPOSIT & FIRST MONTH RENT
+// ==========================================
 const createCheckoutSession = async (req, res) => {
   try {
-    // FIX: Initialize Stripe INSIDE the function so .env is fully loaded!
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error("Stripe secret key is missing from the .env file.");
-    }
+    if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe secret key is missing.");
     const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-
-    const { bookingId } = req.body;
     
-    // Find the booking and the associated room
-    const booking = await Booking.findById(bookingId).populate('roomId');
+    const { bookingId } = req.body;
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    const room = await Room.findById(booking.roomId);
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        { price_data: { currency: 'lkr', product_data: { name: `Key Money (Deposit) for Room ${room.roomNumber}` }, unit_amount: room.keyMoney * 100 }, quantity: 1 },
+        { price_data: { currency: 'lkr', product_data: { name: `First Month Rent for Room ${room.roomNumber}` }, unit_amount: room.monthlyRent * 100 }, quantity: 1 },
+      ],
+      mode: 'payment',
+      success_url: `http://localhost:5173/payment-success/${booking._id}`,
+      cancel_url: `http://localhost:5173/profile`,
+    });
+
+    booking.stripeSessionId = session.id;
+    await booking.save();
+    res.json({ id: session.id, url: session.url });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verifyPayment = async (req, res) => {
+  try {
+    const { bookingId } = req.body;
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    if (booking.paymentStatus === 'Paid') {
+      return res.json({ success: true, message: 'Payment was already verified. No duplicate invoice created.' });
+    }
+
+    const room = await Room.findById(booking.roomId);
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+
+    // Mark as paid
+    booking.paymentStatus = 'Paid';
+    booking.status = 'Confirmed';
+    
+    const startDate = booking.expectedMoveInDate ? new Date(booking.expectedMoveInDate) : new Date();
+    booking.paidUntil = startDate; 
+    await booking.save();
+
+    // Add to room occupancy
+    room.currentOccupancy = (room.currentOccupancy || 0) + 1; 
+    if (room.currentOccupancy >= room.maxCapacity) room.status = 'Full';
+    await room.save();
+
+    const student = await Student.findOne({ email: booking.studentEmail });
+    const firstMonthName = startDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    await Invoice.create({
+      studentId: student ? student._id : booking._id,
+      studentEmail: booking.studentEmail,
+      studentName: booking.studentName,
+      roomNumber: booking.roomNumber,
+      description: `First Month Rent & Key Money (Room ${booking.roomNumber})`,
+      monthName: firstMonthName, 
+      amount: (room.monthlyRent || 0) + (room.keyMoney || 0),
+      status: 'Paid',
+      stripeSessionId: booking.stripeSessionId || 'Manual/Test',
+      paidAt: new Date()
+    });
+
+    res.json({ success: true, message: 'Payment verified!' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==========================================
+// 2. RECURRING MONTHLY RENT
+// ==========================================
+const createMonthlyCheckout = async (req, res) => {
+  try {
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    const { bookingId } = req.body;
+    const booking = await Booking.findById(bookingId);
     const room = await Room.findById(booking.roomId);
 
-    if (!booking || !room) {
-      return res.status(404).json({ message: 'Booking or Room not found' });
-    }
+    const lastPaidDate = booking.paidUntil ? new Date(booking.paidUntil) : new Date(booking.createdAt);
+    const nextMonthDate = new Date(lastPaidDate);
+    nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+    
+    const monthName = nextMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-    // Create the secure checkout session (Prices must be in cents)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
-            currency: 'lkr', // Sri Lankan Rupee
-            product_data: {
-              name: `Key Money (Deposit) for Room ${room.roomNumber}`,
-              description: 'Refundable deposit as per hostel agreement.',
-            },
-            unit_amount: room.keyMoney * 100, // Convert to cents
-          },
-          quantity: 1,
-        },
-        {
-          price_data: {
             currency: 'lkr',
-            product_data: {
-              name: `First Month Rent for Room ${room.roomNumber}`,
-            },
+            product_data: { name: `Rent for ${monthName}`, description: `Room ${room.roomNumber} - Recurring monthly hostel fee.` },
             unit_amount: room.monthlyRent * 100,
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
-      // Send them to a success page, passing the booking ID in the URL
-      success_url: `http://localhost:5173/payment-success/${booking._id}`,
+      success_url: `http://localhost:5173/monthly-success/${booking._id}`,
       cancel_url: `http://localhost:5173/profile`,
     });
 
-    // Save the Stripe session ID to the database
-    booking.stripeSessionId = session.id;
+    booking.monthlyStripeSessionId = session.id;
     await booking.save();
 
-    // Send the Stripe URL to the frontend
     res.json({ id: session.id, url: session.url });
-
   } catch (error) {
-    console.error('Stripe Error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Verify Payment and Update DB
-// @route   POST /api/payment/verify
-const verifyPayment = async (req, res) => {
+const verifyMonthlyPayment = async (req, res) => {
   try {
     const { bookingId } = req.body;
     const booking = await Booking.findById(bookingId);
     
-    if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
+    if (booking.monthlyRentStatus === 'Paid') {
+      return res.json({ success: true, message: 'Monthly rent is already paid. No duplicate invoice created.' });
     }
 
-    // Mark as Paid
-    booking.paymentStatus = 'Paid';
-    booking.status = 'Confirmed';
+    const room = await Room.findById(booking.roomId);
+    
+    // Update booking paid status
+    const currentDate = booking.paidUntil ? new Date(booking.paidUntil) : new Date(booking.createdAt);
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    const paidMonthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    booking.paidUntil = currentDate;
+    booking.monthlyRentStatus = 'Paid';
     await booking.save();
 
-    // Mark the Room as Full so no one else books it
-    await Room.findByIdAndUpdate(booking.roomId, { status: 'Full' });
+    // Create Invoice
+    const student = await Student.findOne({ email: booking.studentEmail });
+    await Invoice.create({
+      studentId: student ? student._id : booking._id,
+      studentEmail: booking.studentEmail,
+      studentName: booking.studentName,
+      roomNumber: booking.roomNumber,
+      description: `Monthly Rent (Room ${booking.roomNumber})`,
+      monthName: paidMonthName,
+      amount: room.monthlyRent,
+      status: 'Paid',
+      stripeSessionId: booking.monthlyStripeSessionId || 'Manual',
+      paidAt: new Date()
+    });
 
-    res.json({ success: true, message: 'Payment verified and room secured!' });
+    res.json({ success: true, message: 'Monthly Rent Paid and Invoice created!' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { createCheckoutSession, verifyPayment };
+// ==========================================
+// 3. EXTERNAL MEAL PAYMENTS
+// ==========================================
+const createMealCheckoutSession = async (req, res) => {
+  try {
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    const { mealBookingId } = req.body;
+
+    const mealBooking = await MealBooking.findById(mealBookingId);
+    if (!mealBooking || mealBooking.type !== 'External') return res.status(404).json({ message: 'External meal order not found.' });
+    if (mealBooking.paymentStatus === 'Paid') return res.status(400).json({ message: 'This meal order is already paid.' });
+
+    const amount = mealBooking.externalAmount || 1200;
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'lkr',
+            product_data: { name: `External Meal Order - ${mealBooking.externalShopName}`, description: `${mealBooking.externalMenuItem} (${mealBooking.slotLabel})` },
+            unit_amount: amount * 100,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `http://localhost:5173/meal-payment-success/${mealBooking._id}`,
+      cancel_url: `http://localhost:5173/student/meals`,
+    });
+
+    mealBooking.stripeSessionId = session.id;
+    await mealBooking.save();
+    res.json({ id: session.id, url: session.url });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verifyMealPayment = async (req, res) => {
+  try {
+    const { mealBookingId } = req.body;
+    const mealBooking = await MealBooking.findById(mealBookingId);
+    if (!mealBooking) return res.status(404).json({ message: 'Meal order not found.' });
+
+    mealBooking.paymentStatus = 'Paid';
+    mealBooking.paidAt = new Date();
+    await mealBooking.save();
+
+    const student = await Student.findOne({ email: mealBooking.studentEmail });
+    await Invoice.create({
+      studentId: student ? student._id : mealBooking._id,
+      studentEmail: mealBooking.studentEmail,
+      studentName: mealBooking.studentName,
+      roomNumber: 'Meal Order',
+      description: `External Meal: ${mealBooking.externalMenuItem} (${mealBooking.externalShopName})`,
+      amount: mealBooking.externalAmount || 1200,
+      status: 'Paid',
+      stripeSessionId: mealBooking.stripeSessionId || 'Manual/Test',
+      paidAt: new Date(),
+    });
+
+    res.json({ success: true, message: 'Meal payment verified and invoice created.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Export ALL functions cleanly in one block
+module.exports = {
+  createCheckoutSession,
+  verifyPayment,
+  createMonthlyCheckout, 
+  verifyMonthlyPayment,
+  createMealCheckoutSession,
+  verifyMealPayment,
+};

@@ -7,7 +7,11 @@ const maintainerSchema = mongoose.Schema({
   phone: { type: String, required: true },
   password: { type: String, required: true },
   role: { type: String, default: 'Maintainer' },
-  status: { type: String, default: 'Inactive' }, // Added Status
+  status: { type: String, default: 'Inactive' }, 
+  specialization: { type: String, enum: ['Plumbing', 'Electrical', 'Furniture', 'Cleaning', 'General', 'Other'], default: 'General' },
+  availability: { type: String, enum: ['Available', 'On Job', 'Off Duty'], default: 'Available' },
+  jobsCompleted: { type: Number, default: 0 },
+  averageRating: { type: Number, default: 0.0 }
 }, { timestamps: true });
 
 maintainerSchema.pre('save', async function (next) {
@@ -15,5 +19,9 @@ maintainerSchema.pre('save', async function (next) {
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
-maintainerSchema.methods.matchPassword = async function (enteredPassword) { return await bcrypt.compare(enteredPassword, this.password); };
+
+maintainerSchema.methods.matchPassword = async function (enteredPassword) { 
+  return await bcrypt.compare(enteredPassword, this.password); 
+};
+
 module.exports = mongoose.model('Maintainer', maintainerSchema);
