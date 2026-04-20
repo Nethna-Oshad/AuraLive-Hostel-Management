@@ -1,8 +1,7 @@
 name: MERN CI Pipeline
 
 on:
-  push:
-    branches: [ "main", "master" ]
+  push: # This tells GitHub to run the pipeline on EVERY branch push
   pull_request:
     branches: [ "main", "master" ]
 
