@@ -72,7 +72,7 @@ const AdminSidebar = () => {
 
         <Link to="/admin/meals" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/meals')}`}>
           <Utensils className="w-5 h-5 shrink-0" />
-          <span className="text-sm tracking-wide">Meal Suppliers</span>
+          <span className="text-sm tracking-wide">Meal Management</span>
         </Link>
         
         <Link to="/admin/maintainers" className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${isActive('/admin/maintainers')}`}>
