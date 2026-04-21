@@ -84,6 +84,14 @@ const ThirdPartyMealDashboard = () => {
     loadData();
   }, [selectedDate, userInfo]);
 
+  useEffect(() => {
+    if (!userInfo || userInfo.role !== 'Student') return;
+    const interval = setInterval(() => {
+      fetchMyMealBookings();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [userInfo]);
+
   const openShopMenu = async (shop) => {
     setSelectedShop(shop);
     setShopMenuItems([]);
@@ -184,40 +192,13 @@ const ThirdPartyMealDashboard = () => {
     }
   };
 
-  const DELIVERY_STEP_MS = 10000;
-
-  const DeliveryAnimatedTracker = ({ bookingId, shouldStart }) => {
-    const [animatedIdx, setAnimatedIdx] = useState(-1);
-    const storageKey = `mealDeliveryTrackStart:${bookingId}`;
-
-    const computeIdxFromElapsed = (startTs) => {
-      if (!startTs) return 0;
-      const elapsedMs = Date.now() - startTs;
-      const raw = Math.floor(elapsedMs / DELIVERY_STEP_MS);
-      return Math.min(Math.max(raw, 0), deliverySteps.length - 1);
+  const DeliveryStatusTracker = ({ currentStatus, shouldShow }) => {
+    const getCurrentIndex = () => {
+      const idx = deliverySteps.findIndex((step) => step.status === currentStatus);
+      return idx >= 0 ? idx : 0;
     };
-
-    useEffect(() => {
-      if (!shouldStart) {
-        setAnimatedIdx(-1);
-        return;
-      }
-      let startTs = Number(localStorage.getItem(storageKey));
-      if (!startTs) {
-        startTs = Date.now();
-        localStorage.setItem(storageKey, String(startTs));
-      }
-
-      const tick = () => {
-        setAnimatedIdx(computeIdxFromElapsed(startTs));
-      };
-
-      tick();
-      const interval = setInterval(tick, 1000);
-      return () => clearInterval(interval);
-    }, [storageKey, shouldStart]);
-
-    const progressPercent = animatedIdx < 0 ? 0 : ((animatedIdx + 1) / deliverySteps.length) * 100;
+    const activeIndex = getCurrentIndex();
+    const progressPercent = shouldShow ? ((activeIndex + 1) / deliverySteps.length) * 100 : 0;
 
     return (
       <div>
@@ -229,7 +210,7 @@ const ThirdPartyMealDashboard = () => {
           />
 
           {deliverySteps.map((step, stepIdx) => {
-            const isDoneOrCurrent = animatedIdx >= stepIdx;
+            const isDoneOrCurrent = shouldShow && activeIndex >= stepIdx;
             return (
               <div key={step.status} className="flex flex-col items-center w-1/4 relative z-10">
                 <div
@@ -248,7 +229,7 @@ const ThirdPartyMealDashboard = () => {
 
         <div className="flex items-start justify-between mt-2">
           {deliverySteps.map((step, stepIdx) => {
-            const isDoneOrCurrent = animatedIdx >= stepIdx;
+            const isDoneOrCurrent = shouldShow && activeIndex >= stepIdx;
             return (
               <p
                 key={step.status}
@@ -265,7 +246,16 @@ const ThirdPartyMealDashboard = () => {
     );
   };
 
-  const displayedBookings = showAllBookings ? studentBookings : studentBookings.slice(0, 3);
+  const isCompletedOrder = (booking) =>
+    booking.status === 'Cancelled' ||
+    booking.status === 'Completed' ||
+    booking.deliveryStatus === 'Delivered';
+
+  const ongoingBookings = studentBookings.filter((booking) => !isCompletedOrder(booking));
+  const completedBookings = studentBookings.filter((booking) => isCompletedOrder(booking));
+
+  const displayedOngoingBookings = showAllBookings ? ongoingBookings : ongoingBookings.slice(0, 3);
+  const displayedCompletedBookings = showAllBookings ? completedBookings : completedBookings.slice(0, 3);
 
   if (loading) {
     return (
@@ -377,69 +367,160 @@ const ThirdPartyMealDashboard = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {displayedBookings.map((booking) => (
-                <div
-                  key={booking._id}
-                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100 rounded-xl p-4 bg-gradient-to-r from-white to-slate-50 hover:shadow-sm transition-all"
-                >
-                  <div className="w-full md:w-auto flex-1">
-                    <p className="font-bold text-gray-900">External Meal Order</p>
-                    <p className="text-sm text-gray-600">
-                      {booking.bookingDate} | {booking.slotLabel}
-                    </p>
-                    <p className="text-sm text-orange-600 mt-1">
-                      {booking.externalShopName} - {booking.externalMenuItem} (Rs. {booking.externalAmount || 0})
-                    </p>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#1f5a80]">Ongoing Orders</h3>
+                <div className="mt-3 space-y-3">
+                  {displayedOngoingBookings.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-blue-200 bg-white p-4 text-sm text-gray-500">
+                      No ongoing external orders.
+                    </div>
+                  ) : (
+                    displayedOngoingBookings.map((booking) => (
+                      <div
+                        key={booking._id}
+                        className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100 rounded-xl p-4 bg-gradient-to-r from-white to-slate-50 hover:shadow-sm transition-all"
+                      >
+                        <div className="w-full md:w-auto flex-1">
+                          <p className="font-bold text-gray-900">External Meal Order</p>
+                          <p className="text-sm text-gray-600">
+                            {booking.bookingDate} | {booking.slotLabel}
+                          </p>
+                          <p className="text-sm text-orange-600 mt-1">
+                            {booking.externalShopName} - {booking.externalMenuItem} (Rs. {booking.externalAmount || 0})
+                          </p>
 
-                    {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
-                      <p className="text-sm text-[#1f5a80] mt-1">
-                        Complete payment to confirm your order. Cancellation will be disabled after payment.
-                      </p>
-                    )}
+                          {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
+                            <p className="text-sm text-[#1f5a80] mt-1">
+                              Complete payment to confirm your order. Cancellation will be disabled after payment.
+                            </p>
+                          )}
 
-                    {booking.status !== 'Cancelled' && (
-                      <div className="mt-4 max-w-lg">
-                        <DeliveryAnimatedTracker bookingId={booking._id} shouldStart={booking.paymentStatus === 'Paid'} />
+                          {booking.status !== 'Cancelled' && (
+                            <div className="mt-4 max-w-lg">
+                              <DeliveryStatusTracker
+                                currentStatus={booking.deliveryStatus || 'Pending'}
+                                shouldShow={booking.paymentStatus === 'Paid'}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
+                          <span
+                            className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
+                              booking.status === 'Cancelled'
+                                ? 'text-red-600 bg-red-50 border-red-100'
+                                : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                            }`}
+                          >
+                            {booking.status}
+                          </span>
+                          <span
+                            className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
+                              booking.paymentStatus === 'Paid'
+                                ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                                : 'text-amber-700 bg-amber-50 border-amber-100'
+                            }`}
+                          >
+                            Payment: {booking.paymentStatus}
+                          </span>
+                          {booking.paymentStatus === 'Paid' && booking.status !== 'Cancelled' && (
+                            <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-100">
+                              Supplier Status: {booking.deliveryStatus || 'Pending'}
+                            </span>
+                          )}
+
+                          {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
+                            <button
+                              onClick={() => handlePayExternalOrder(booking._id)}
+                              className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#2872A1] text-white hover:bg-[#1f5a80] transition-colors"
+                            >
+                              Pay Now
+                            </button>
+                          )}
+
+                          {booking.status !== 'Cancelled' && (
+                            <button
+                              onClick={() => handleCancelBooking(booking._id)}
+                              disabled={booking.paymentStatus === 'Paid'}
+                              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+                                booking.paymentStatus === 'Paid'
+                                  ? 'bg-red-50 text-red-300 border border-red-100 cursor-not-allowed'
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                              }`}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
-                    <span
-                      className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
-                        booking.status === 'Cancelled'
-                          ? 'text-red-600 bg-red-50 border-red-100'
-                          : 'text-emerald-600 bg-emerald-50 border-emerald-100'
-                      }`}
-                    >
-                      {booking.status}
-                    </span>
-
-                    {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
-                      <button
-                        onClick={() => handlePayExternalOrder(booking._id)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#2872A1] text-white hover:bg-[#1f5a80] transition-colors"
-                      >
-                        Pay Now
-                      </button>
-                    )}
-
-                    {booking.status !== 'Cancelled' && (
-                      <button
-                        onClick={() => handleCancelBooking(booking._id)}
-                        disabled={booking.paymentStatus === 'Paid'}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
-                          booking.paymentStatus === 'Paid'
-                            ? 'bg-red-50 text-red-300 border border-red-100 cursor-not-allowed'
-                            : 'bg-red-100 text-red-700 hover:bg-red-200'
-                        }`}
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
+                    ))
+                  )}
                 </div>
-              ))}
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-emerald-700">Completed Orders</h3>
+                <div className="mt-3 space-y-3">
+                  {displayedCompletedBookings.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-emerald-200 bg-white p-4 text-sm text-gray-500">
+                      No completed external orders.
+                    </div>
+                  ) : (
+                    displayedCompletedBookings.map((booking) => (
+                      <div
+                        key={booking._id}
+                        className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100 rounded-xl p-4 bg-gradient-to-r from-white to-slate-50 hover:shadow-sm transition-all"
+                      >
+                        <div className="w-full md:w-auto flex-1">
+                          <p className="font-bold text-gray-900">External Meal Order</p>
+                          <p className="text-sm text-gray-600">
+                            {booking.bookingDate} | {booking.slotLabel}
+                          </p>
+                          <p className="text-sm text-orange-600 mt-1">
+                            {booking.externalShopName} - {booking.externalMenuItem} (Rs. {booking.externalAmount || 0})
+                          </p>
+
+                          {booking.status !== 'Cancelled' && (
+                            <div className="mt-4 max-w-lg">
+                              <DeliveryStatusTracker
+                                currentStatus={booking.deliveryStatus || 'Pending'}
+                                shouldShow={booking.paymentStatus === 'Paid'}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
+                          <span
+                            className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
+                              booking.status === 'Cancelled'
+                                ? 'text-red-600 bg-red-50 border-red-100'
+                                : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                            }`}
+                          >
+                            {booking.status}
+                          </span>
+                          <span
+                            className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
+                              booking.paymentStatus === 'Paid'
+                                ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                                : 'text-amber-700 bg-amber-50 border-amber-100'
+                            }`}
+                          >
+                            Payment: {booking.paymentStatus}
+                          </span>
+                          {booking.paymentStatus === 'Paid' && booking.status !== 'Cancelled' && (
+                            <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-100">
+                              Supplier Status: {booking.deliveryStatus || 'Pending'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
 
               {/* View All / Show Less Toggle Button */}
               {studentBookings.length > 3 && (

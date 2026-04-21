@@ -61,6 +61,12 @@ const getBookingDate = (dateParam) => {
   return new Date().toISOString().slice(0, 10);
 };
 
+const resolveSupplierByEmail = async (supplierEmail) => {
+  const cleanEmail = String(supplierEmail || '').trim();
+  if (!cleanEmail) return null;
+  return MealSupplier.findOne({ email: cleanEmail });
+};
+
 const ensureDefaultSlots = async () => {
   const existing = await MealSlot.countDocuments();
   if (existing > 0) return;
@@ -244,6 +250,9 @@ const updateDeliveryStatus = async (req, res) => {
 
     const order = await MealBooking.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Meal order not found.' });
+    if (order.type === 'External') {
+      return res.status(403).json({ message: 'Admin is not allowed to update delivery status for external orders.' });
+    }
 
     order.deliveryStatus = deliveryStatus;
     if (deliveryStatus === 'Cancelled') {
@@ -445,16 +454,19 @@ const deleteAdminSlot = async (req, res) => {
 
 const getSupplierOrders = async (req, res) => {
   try {
-    const { supplierName, date, deliveryStatus, paymentStatus } = req.query;
-    const query = {};
+    const { supplierEmail, date, deliveryStatus, paymentStatus } = req.query;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier) {
+      return res.status(400).json({ message: 'Valid supplierEmail is required.' });
+    }
 
-    if (supplierName) query.externalShopName = supplierName;
+    const query = {
+      type: 'External',
+      externalShopName: supplier.name,
+    };
     if (date) query.bookingDate = date;
     if (deliveryStatus) query.deliveryStatus = deliveryStatus;
     if (paymentStatus) query.paymentStatus = paymentStatus;
-
-    // Kitchen bookings have no shop, so supplier view focuses on external shop orders.
-    query.type = 'External';
 
     const orders = await MealBooking.find(query).sort({ createdAt: -1 });
     res.json(orders);
@@ -465,13 +477,14 @@ const getSupplierOrders = async (req, res) => {
 
 const getSupplierSummary = async (req, res) => {
   try {
-    const { supplierName } = req.query;
-    if (!supplierName) {
-      return res.status(400).json({ message: 'supplierName is required.' });
+    const { supplierEmail } = req.query;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier) {
+      return res.status(400).json({ message: 'Valid supplierEmail is required.' });
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const baseQuery = { type: 'External', externalShopName: supplierName };
+    const baseQuery = { type: 'External', externalShopName: supplier.name };
 
     const [todayOrders, pendingOrders, deliveredOrders, paidRevenue, unpaidOrders] = await Promise.all([
       MealBooking.countDocuments({ ...baseQuery, bookingDate: today }),
@@ -515,10 +528,11 @@ const getSupplierSummary = async (req, res) => {
 const getSupplierMenuItems = async (req, res) => {
   try {
     const { supplierEmail } = req.query;
-    if (!supplierEmail) {
-      return res.status(400).json({ message: 'supplierEmail is required.' });
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier) {
+      return res.status(400).json({ message: 'Valid supplierEmail is required.' });
     }
-    const items = await MealMenuItem.find({ supplierEmail }).sort({ createdAt: -1 });
+    const items = await MealMenuItem.find({ supplierEmail: supplier.email }).sort({ createdAt: -1 });
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -552,13 +566,14 @@ const getPublicShopMenuItems = async (req, res) => {
 
 const createSupplierMenuItem = async (req, res) => {
   try {
-    const { supplierName, supplierEmail, itemName, category, price, prepTimeMinutes, description, isAvailable } = req.body;
-    if (!supplierName || !supplierEmail || !itemName || price === undefined) {
-      return res.status(400).json({ message: 'supplierName, supplierEmail, itemName and price are required.' });
+    const { supplierEmail, itemName, category, price, prepTimeMinutes, description, isAvailable } = req.body;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier || !itemName || price === undefined) {
+      return res.status(400).json({ message: 'supplierEmail, itemName and price are required.' });
     }
     const item = await MealMenuItem.create({
-      supplierName,
-      supplierEmail,
+      supplierName: supplier.name,
+      supplierEmail: supplier.email,
       itemName,
       category: category || 'Main',
       price,
@@ -574,8 +589,28 @@ const createSupplierMenuItem = async (req, res) => {
 
 const updateSupplierMenuItem = async (req, res) => {
   try {
-    const item = await MealMenuItem.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    const { supplierEmail, ...updates } = req.body;
+    const item = await MealMenuItem.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Menu item not found.' });
+
+    if (supplierEmail) {
+      const supplier = await resolveSupplierByEmail(supplierEmail);
+      if (!supplier) {
+        return res.status(400).json({ message: 'Valid supplierEmail is required.' });
+      }
+      if (item.supplierEmail !== supplier.email) {
+        return res.status(403).json({ message: 'You can only edit your own menu items.' });
+      }
+    }
+
+    if (updates.itemName !== undefined) item.itemName = updates.itemName;
+    if (updates.category !== undefined) item.category = updates.category;
+    if (updates.price !== undefined) item.price = updates.price;
+    if (updates.prepTimeMinutes !== undefined) item.prepTimeMinutes = updates.prepTimeMinutes;
+    if (updates.description !== undefined) item.description = updates.description;
+    if (updates.isAvailable !== undefined) item.isAvailable = updates.isAvailable;
+    await item.save();
+
     res.json(item);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -584,8 +619,21 @@ const updateSupplierMenuItem = async (req, res) => {
 
 const deleteSupplierMenuItem = async (req, res) => {
   try {
-    const item = await MealMenuItem.findByIdAndDelete(req.params.id);
+    const { supplierEmail } = req.query;
+    const item = await MealMenuItem.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Menu item not found.' });
+
+    if (supplierEmail) {
+      const supplier = await resolveSupplierByEmail(supplierEmail);
+      if (!supplier) {
+        return res.status(400).json({ message: 'Valid supplierEmail is required.' });
+      }
+      if (item.supplierEmail !== supplier.email) {
+        return res.status(403).json({ message: 'You can only delete your own menu items.' });
+      }
+    }
+
+    await MealMenuItem.findByIdAndDelete(req.params.id);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -755,15 +803,22 @@ const getAdminMealHubStats = async (req, res) => {
 
 const updateSupplierDeliveryStatus = async (req, res) => {
   try {
-    const { deliveryStatus, supplierName } = req.body;
-    if (!deliveryStatus || !supplierName) {
-      return res.status(400).json({ message: 'deliveryStatus and supplierName are required.' });
+    const { deliveryStatus, supplierEmail } = req.body;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!deliveryStatus || !supplier) {
+      return res.status(400).json({ message: 'deliveryStatus and a valid supplierEmail are required.' });
     }
 
     const order = await MealBooking.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Meal order not found.' });
-    if (order.externalShopName !== supplierName) {
+    if (order.externalShopName !== supplier.name) {
       return res.status(403).json({ message: 'You can only update your own shop orders.' });
+    }
+    if (order.paymentStatus !== 'Paid') {
+      return res.status(400).json({ message: 'This order is not paid yet. Update status after payment confirmation.' });
+    }
+    if (order.status === 'Cancelled') {
+      return res.status(400).json({ message: 'Cancelled orders cannot be updated.' });
     }
 
     order.deliveryStatus = deliveryStatus;

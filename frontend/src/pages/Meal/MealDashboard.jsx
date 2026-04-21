@@ -24,22 +24,17 @@ const MealDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const normalize = (value) => String(value || '').trim().toLowerCase();
-
   const fetchOrders = async () => {
     try {
       const params = new URLSearchParams();
       if (dateFilter) params.append('date', dateFilter);
+      params.append('supplierEmail', userInfo?.email || '');
       const response = await fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`);
       const data = await response.json();
-      const externalOrders = Array.isArray(data) ? data.filter((order) => order.type === 'External') : [];
-      const hasShopMapped = externalOrders.some(
-        (order) => normalize(order.externalShopName) === normalize(userInfo?.name)
-      );
-      const scopedOrders = hasShopMapped
-        ? externalOrders.filter((order) => normalize(order.externalShopName) === normalize(userInfo?.name))
-        : externalOrders;
-      setOrders(scopedOrders);
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to load supplier orders.');
+      }
+      setOrders(Array.isArray(data) ? data : []);
     } catch {
       toast.error('Failed to load supplier orders.');
     }
@@ -92,7 +87,7 @@ const MealDashboard = () => {
       const response = await fetch(`http://localhost:5000/api/meals/supplier/orders/${orderId}/delivery-status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deliveryStatus, supplierName: userInfo?.name }),
+        body: JSON.stringify({ deliveryStatus, supplierEmail: userInfo?.email }),
       });
       if (!response.ok) {
         const data = await response.json();

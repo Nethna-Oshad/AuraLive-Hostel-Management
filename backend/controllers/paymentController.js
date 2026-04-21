@@ -181,7 +181,8 @@ const createMealCheckoutSession = async (req, res) => {
     if (!mealBooking || mealBooking.type !== 'External') return res.status(404).json({ message: 'External meal order not found.' });
     if (mealBooking.paymentStatus === 'Paid') return res.status(400).json({ message: 'This meal order is already paid.' });
 
-    const amount = mealBooking.externalAmount || 1200;
+    const amount = Number(mealBooking.externalAmount) || 1200;
+    const checkoutAmount = Math.max(amount, 200);
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -189,7 +190,7 @@ const createMealCheckoutSession = async (req, res) => {
           price_data: {
             currency: 'lkr',
             product_data: { name: `External Meal Order - ${mealBooking.externalShopName}`, description: `${mealBooking.externalMenuItem} (${mealBooking.slotLabel})` },
-            unit_amount: amount * 100,
+            unit_amount: Math.round(checkoutAmount * 100),
           },
           quantity: 1,
         },
@@ -212,6 +213,9 @@ const verifyMealPayment = async (req, res) => {
     const { mealBookingId } = req.body;
     const mealBooking = await MealBooking.findById(mealBookingId);
     if (!mealBooking) return res.status(404).json({ message: 'Meal order not found.' });
+    if (mealBooking.paymentStatus === 'Paid') {
+      return res.json({ success: true, message: 'Meal payment already verified.' });
+    }
 
     mealBooking.paymentStatus = 'Paid';
     mealBooking.paidAt = new Date();

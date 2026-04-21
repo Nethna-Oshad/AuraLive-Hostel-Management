@@ -19,26 +19,21 @@ const MealOrders = () => {
     paymentStatus: '',
   });
   const [loading, setLoading] = useState(true);
-  const normalize = (value) => String(value || '').trim().toLowerCase();
-
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+      params.append('supplierEmail', userInfo?.email || '');
       if (filters.date) params.append('date', filters.date);
       if (filters.deliveryStatus) params.append('deliveryStatus', filters.deliveryStatus);
       if (filters.paymentStatus) params.append('paymentStatus', filters.paymentStatus);
 
       const response = await fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`);
       const data = await response.json();
-      const externalOrders = Array.isArray(data) ? data.filter((order) => order.type === 'External') : [];
-      const hasShopMapped = externalOrders.some(
-        (order) => normalize(order.externalShopName) === normalize(userInfo?.name)
-      );
-      const scopedOrders = hasShopMapped
-        ? externalOrders.filter((order) => normalize(order.externalShopName) === normalize(userInfo?.name))
-        : externalOrders;
-      setOrders(scopedOrders);
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to load orders.');
+      }
+      setOrders(Array.isArray(data) ? data : []);
     } catch {
       toast.error('Failed to load orders.');
     } finally {
@@ -56,7 +51,7 @@ const MealOrders = () => {
       const response = await fetch(`http://localhost:5000/api/meals/supplier/orders/${orderId}/delivery-status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deliveryStatus, supplierName: userInfo?.name }),
+        body: JSON.stringify({ deliveryStatus, supplierEmail: userInfo?.email }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -95,10 +90,11 @@ const MealOrders = () => {
               className="px-3 py-2 text-sm border border-gray-200 rounded-lg"
             >
               <option value="">All Delivery States</option>
-              <option value="Pending">Pending</option>
-              <option value="Preparing">Preparing</option>
-              <option value="Out for Delivery">Out for Delivery</option>
-              <option value="Delivered">Delivered</option>
+              <option value="AwaitingAcceptance">Awaiting Supplier Acceptance</option>
+              <option value="Pending">Order Accepted</option>
+              <option value="Preparing">Preparation Started</option>
+              <option value="Out for Delivery">Preparation Completed</option>
+              <option value="Delivered">Ready for Pickup</option>
               <option value="Cancelled">Cancelled</option>
             </select>
             <select
@@ -162,14 +158,22 @@ const MealOrders = () => {
                           <select
                             id={`supplier-order-delivery-${order._id}`}
                             name={`supplierOrderDelivery-${order._id}`}
-                            value={order.deliveryStatus || 'Pending'}
+                            value={order.deliveryStatus || 'AwaitingAcceptance'}
                             onChange={(e) => handleDeliveryStatusChange(order._id, e.target.value)}
-                            className="px-2 py-1 text-xs font-semibold border border-gray-200 rounded-md"
+                            disabled={order.paymentStatus !== 'Paid' || order.status === 'Cancelled'}
+                            className={`px-2 py-1 text-xs font-semibold border border-gray-200 rounded-md ${
+                              order.paymentStatus !== 'Paid' || order.status === 'Cancelled'
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : ''
+                            }`}
                           >
-                            <option value="Pending">Pending</option>
-                            <option value="Preparing">Preparing</option>
-                            <option value="Out for Delivery">Out for Delivery</option>
-                            <option value="Delivered">Delivered</option>
+                            <option value="AwaitingAcceptance" disabled>
+                              Awaiting Supplier Acceptance
+                            </option>
+                            <option value="Pending">Accept Order</option>
+                            <option value="Preparing">Preparation Started</option>
+                            <option value="Out for Delivery">Preparation Completed</option>
+                            <option value="Delivered">Ready for Pickup</option>
                             <option value="Cancelled">Cancelled</option>
                           </select>
                         </td>

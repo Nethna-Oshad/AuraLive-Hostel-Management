@@ -20,19 +20,21 @@ const MealInsights = () => {
     unpaidOrders: 0,
   });
   const [orders, setOrders] = useState([]);
-  const normalize = (value) => String(value || '').trim().toLowerCase();
-
   useEffect(() => {
     const loadInsights = async () => {
       if (!userInfo || userInfo.role !== 'MealSupplier') return;
       try {
+        const supplierEmail = encodeURIComponent(userInfo?.email || '');
         const [summaryRes, ordersRes] = await Promise.all([
-          fetch(`http://localhost:5000/api/meals/supplier/summary?supplierName=${encodeURIComponent(userInfo?.name || '')}`),
-          fetch(`http://localhost:5000/api/meals/supplier/orders`),
+          fetch(`http://localhost:5000/api/meals/supplier/summary?supplierEmail=${supplierEmail}`),
+          fetch(`http://localhost:5000/api/meals/supplier/orders?supplierEmail=${supplierEmail}`),
         ]);
 
         const summaryData = await summaryRes.json();
         const ordersData = await ordersRes.json();
+        if (!summaryRes.ok || !ordersRes.ok) {
+          throw new Error(summaryData.message || ordersData.message || 'Failed to load insights.');
+        }
 
         setSummary({
           todayOrders: summaryData.todayOrders || 0,
@@ -41,14 +43,7 @@ const MealInsights = () => {
           revenueToday: summaryData.revenueToday || 0,
           unpaidOrders: summaryData.unpaidOrders || 0,
         });
-        const externalOrders = Array.isArray(ordersData) ? ordersData.filter((order) => order.type === 'External') : [];
-        const hasShopMapped = externalOrders.some(
-          (order) => normalize(order.externalShopName) === normalize(userInfo?.name)
-        );
-        const scopedOrders = hasShopMapped
-          ? externalOrders.filter((order) => normalize(order.externalShopName) === normalize(userInfo?.name))
-          : externalOrders;
-        setOrders(scopedOrders);
+        setOrders(Array.isArray(ordersData) ? ordersData : []);
       } catch {
         toast.error('Failed to load insights.');
       }
