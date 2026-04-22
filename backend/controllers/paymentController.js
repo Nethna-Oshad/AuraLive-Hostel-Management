@@ -4,6 +4,10 @@ const Room = require('../models/roomModel');
 const Invoice = require('../models/invoiceModel');
 const Student = require('../models/studentModel'); 
 
+// Stripe requires card charges to be at least ~USD 0.50 equivalent.
+// For LKR, keep a safe floor to avoid conversion-edge rejections.
+const MIN_STRIPE_LKR_AMOUNT = 160;
+
 // ==========================================
 // 1. INITIAL DEPOSIT & FIRST MONTH RENT
 // ==========================================
@@ -181,20 +185,42 @@ const createMealCheckoutSession = async (req, res) => {
     if (!mealBooking || mealBooking.type !== 'External') return res.status(404).json({ message: 'External meal order not found.' });
     if (mealBooking.paymentStatus === 'Paid') return res.status(400).json({ message: 'This meal order is already paid.' });
 
-    const amount = Number(mealBooking.externalAmount) || 1200;
-    const checkoutAmount = Math.max(amount, 200);
+    const checkoutAmount = Number(mealBooking.externalAmount);
+    if (!Number.isFinite(checkoutAmount) || checkoutAmount <= 0) {
+      return res.status(400).json({ message: 'Invalid meal order amount for checkout.' });
+    }
+    if (checkoutAmount < MIN_STRIPE_LKR_AMOUNT) {
+      return res.status(400).json({
+        message: `This order amount (Rs. ${checkoutAmount}) is below Stripe's minimum charge for LKR. Please set at least Rs. ${MIN_STRIPE_LKR_AMOUNT}.`,
+      });
+    }
+    const lineItems =
+      Array.isArray(mealBooking.externalItems) && mealBooking.externalItems.length > 0
+        ? mealBooking.externalItems.map((item) => ({
+            price_data: {
+              currency: 'lkr',
+              product_data: {
+                name: `${item.itemName} - ${item.supplierName}`,
+                description: `External meal (${mealBooking.slotLabel})`,
+              },
+              unit_amount: Math.round((Number(item.unitPrice) || 0) * 100),
+            },
+            quantity: Number(item.quantity) || 1,
+          }))
+        : [
+            {
+              price_data: {
+                currency: 'lkr',
+                product_data: { name: `External Meal Order - ${mealBooking.externalShopName}`, description: `${mealBooking.externalMenuItem} (${mealBooking.slotLabel})` },
+                unit_amount: Math.round(checkoutAmount * 100),
+              },
+              quantity: 1,
+            },
+          ];
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'lkr',
-            product_data: { name: `External Meal Order - ${mealBooking.externalShopName}`, description: `${mealBooking.externalMenuItem} (${mealBooking.slotLabel})` },
-            unit_amount: Math.round(checkoutAmount * 100),
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       mode: 'payment',
       success_url: `http://localhost:5173/meal-payment-success/${mealBooking._id}`,
       cancel_url: `http://localhost:5173/student/meals`,
@@ -228,7 +254,7 @@ const verifyMealPayment = async (req, res) => {
       studentName: mealBooking.studentName,
       roomNumber: 'Meal Order',
       description: `External Meal: ${mealBooking.externalMenuItem} (${mealBooking.externalShopName})`,
-      amount: mealBooking.externalAmount || 1200,
+      amount: Number(mealBooking.externalAmount) || 0,
       status: 'Paid',
       stripeSessionId: mealBooking.stripeSessionId || 'Manual/Test',
       paidAt: new Date(),

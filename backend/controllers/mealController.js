@@ -3,6 +3,8 @@ const MealSlot = require('../models/mealSlotModel');
 const MealMenuItem = require('../models/mealMenuItemModel');
 const MealSupplier = require('../models/mealSupplierModel');
 
+const MIN_STRIPE_LKR_AMOUNT = 160;
+
 const DEFAULT_KITCHEN_SLOTS = [
   { label: 'Breakfast Prep', timeRange: '06:00 - 07:00', capacity: 4 },
   { label: 'Lunch Prep', timeRange: '12:00 - 13:00', capacity: 5 },
@@ -179,7 +181,7 @@ const createKitchenBooking = async (req, res) => {
 
 const createExternalOrder = async (req, res) => {
   try {
-    const { studentEmail, studentName, bookingDate, shopName, menuItem, slotId, notes } = req.body;
+    const { studentEmail, studentName, bookingDate, shopName, menuItem, menuItemId, slotId, notes } = req.body;
 
     if (!studentEmail || !studentName || !shopName || !menuItem) {
       return res.status(400).json({ message: 'studentEmail, studentName, shopName and menuItem are required.' });
@@ -192,7 +194,31 @@ const createExternalOrder = async (req, res) => {
     if (!selectedShop) {
       return res.status(400).json({ message: 'Selected shop is not available.' });
     }
-    const externalAmount = selectedShop ? selectedShop.basePrice : 1200;
+    let matchedMenuItem = null;
+    if (menuItemId) {
+      matchedMenuItem = await MealMenuItem.findOne({
+        _id: menuItemId,
+        supplierName: shopName,
+      }).select('price itemName');
+    }
+    if (!matchedMenuItem) {
+      matchedMenuItem = await MealMenuItem.findOne({
+        supplierName: shopName,
+        itemName: menuItem,
+        isAvailable: true,
+      })
+        .sort({ createdAt: -1 })
+        .select('price itemName');
+    }
+
+    if (!matchedMenuItem) {
+      return res.status(400).json({ message: 'Selected menu item is not available.' });
+    }
+
+    const externalAmount = Number(matchedMenuItem.price);
+    if (!Number.isFinite(externalAmount) || externalAmount < 0) {
+      return res.status(400).json({ message: 'Invalid menu item price configured by supplier.' });
+    }
     const slotLabel = selectedSlot
       ? `${selectedSlot.label} (${selectedSlot.timeRange})`
       : 'External Order Window';
@@ -206,8 +232,92 @@ const createExternalOrder = async (req, res) => {
       slotLabel,
       notes: notes || '',
       externalShopName: shopName,
-      externalMenuItem: menuItem,
+      externalMenuItem: matchedMenuItem.itemName || menuItem,
       externalAmount,
+      paymentStatus: 'Unpaid',
+    });
+
+    res.status(201).json(booking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createExternalCartOrder = async (req, res) => {
+  try {
+    const { studentEmail, studentName, bookingDate, items, slotId, notes } = req.body;
+
+    if (!studentEmail || !studentName || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'studentEmail, studentName and cart items are required.' });
+    }
+    const distinctRequestedShops = [...new Set(items.map((item) => item.shopName).filter(Boolean))];
+    if (distinctRequestedShops.length > 1) {
+      return res.status(400).json({ message: 'Cart checkout supports items from one store only.' });
+    }
+
+    const date = getBookingDate(bookingDate);
+    const selectedSlot = slotId ? await MealSlot.findById(slotId) : null;
+    const slotLabel = selectedSlot
+      ? `${selectedSlot.label} (${selectedSlot.timeRange})`
+      : 'External Order Window';
+
+    const normalizedItems = [];
+    for (const rawItem of items) {
+      const quantity = Number(rawItem.quantity) || 0;
+      if (quantity < 1) {
+        return res.status(400).json({ message: 'Each cart item must have quantity at least 1.' });
+      }
+
+      const menuItem = await MealMenuItem.findOne({
+        _id: rawItem.menuItemId,
+        supplierName: rawItem.shopName,
+        isAvailable: true,
+      }).select('supplierName itemName price');
+
+      if (!menuItem) {
+        return res.status(400).json({ message: `Selected item is not available: ${rawItem.itemName || 'Unknown item'}.` });
+      }
+
+      const unitPrice = Number(menuItem.price);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        return res.status(400).json({ message: `Invalid price configured for item: ${menuItem.itemName}.` });
+      }
+
+      normalizedItems.push({
+        supplierName: menuItem.supplierName,
+        menuItemId: String(rawItem.menuItemId || menuItem._id),
+        itemName: menuItem.itemName,
+        quantity,
+        unitPrice,
+        lineTotal: unitPrice * quantity,
+      });
+    }
+
+    const externalAmount = normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    if (externalAmount <= 0) {
+      return res.status(400).json({ message: 'Cart total must be greater than 0.' });
+    }
+
+    const distinctShops = [...new Set(normalizedItems.map((item) => item.supplierName))];
+    if (distinctShops.length > 1) {
+      return res.status(400).json({ message: 'Cart checkout supports items from one store only.' });
+    }
+    const externalShopName = distinctShops[0];
+    const totalQty = normalizedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const externalMenuItem = `${totalQty} item${totalQty > 1 ? 's' : ''}`;
+
+    const booking = await MealBooking.create({
+      studentEmail,
+      studentName,
+      bookingDate: date,
+      type: 'External',
+      slotId: selectedSlot ? selectedSlot.id : 'external-order',
+      slotLabel,
+      notes: notes || '',
+      externalShopName,
+      externalMenuItem,
+      externalAmount,
+      externalItems: normalizedItems,
       paymentStatus: 'Unpaid',
     });
 
@@ -221,6 +331,56 @@ const getStudentMealBookings = async (req, res) => {
   try {
     const bookings = await MealBooking.find({ studentEmail: req.params.email }).sort({ createdAt: -1 });
     res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteStudentCompletedExternalOrder = async (req, res) => {
+  try {
+    const { studentEmail } = req.query;
+    if (!studentEmail) {
+      return res.status(400).json({ message: 'studentEmail is required.' });
+    }
+
+    const booking = await MealBooking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Meal order not found.' });
+    if (booking.studentEmail !== studentEmail) {
+      return res.status(403).json({ message: 'You can only delete your own meal orders.' });
+    }
+    if (booking.type !== 'External') {
+      return res.status(400).json({ message: 'Only external orders can be deleted from this history.' });
+    }
+
+    const canDelete =
+      booking.status === 'Cancelled' ||
+      booking.status === 'Completed' ||
+      booking.deliveryStatus === 'Delivered';
+    if (!canDelete) {
+      return res.status(400).json({ message: 'Only completed/cancelled external orders can be deleted.' });
+    }
+
+    await MealBooking.findByIdAndDelete(booking._id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteStudentCompletedExternalOrdersBulk = async (req, res) => {
+  try {
+    const { studentEmail } = req.query;
+    if (!studentEmail) {
+      return res.status(400).json({ message: 'studentEmail is required.' });
+    }
+
+    const result = await MealBooking.deleteMany({
+      studentEmail,
+      type: 'External',
+      $or: [{ status: 'Cancelled' }, { status: 'Completed' }, { deliveryStatus: 'Delivered' }],
+    });
+
+    res.json({ success: true, deletedCount: result.deletedCount || 0 });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -571,12 +731,18 @@ const createSupplierMenuItem = async (req, res) => {
     if (!supplier || !itemName || price === undefined) {
       return res.status(400).json({ message: 'supplierEmail, itemName and price are required.' });
     }
+    const numericPrice = Number(price);
+    if (!Number.isFinite(numericPrice) || numericPrice < MIN_STRIPE_LKR_AMOUNT) {
+      return res.status(400).json({
+        message: `Price must be at least Rs. ${MIN_STRIPE_LKR_AMOUNT} due to Stripe minimum charge limits.`,
+      });
+    }
     const item = await MealMenuItem.create({
       supplierName: supplier.name,
       supplierEmail: supplier.email,
       itemName,
       category: category || 'Main',
-      price,
+      price: numericPrice,
       prepTimeMinutes: prepTimeMinutes || 30,
       description: description || '',
       isAvailable: isAvailable !== undefined ? isAvailable : true,
@@ -605,7 +771,15 @@ const updateSupplierMenuItem = async (req, res) => {
 
     if (updates.itemName !== undefined) item.itemName = updates.itemName;
     if (updates.category !== undefined) item.category = updates.category;
-    if (updates.price !== undefined) item.price = updates.price;
+    if (updates.price !== undefined) {
+      const numericPrice = Number(updates.price);
+      if (!Number.isFinite(numericPrice) || numericPrice < MIN_STRIPE_LKR_AMOUNT) {
+        return res.status(400).json({
+          message: `Price must be at least Rs. ${MIN_STRIPE_LKR_AMOUNT} due to Stripe minimum charge limits.`,
+        });
+      }
+      item.price = numericPrice;
+    }
     if (updates.prepTimeMinutes !== undefined) item.prepTimeMinutes = updates.prepTimeMinutes;
     if (updates.description !== undefined) item.description = updates.description;
     if (updates.isAvailable !== undefined) item.isAvailable = updates.isAvailable;
@@ -836,7 +1010,10 @@ module.exports = {
   getKitchenSlots,
   createKitchenBooking,
   createExternalOrder,
+  createExternalCartOrder,
   getStudentMealBookings,
+  deleteStudentCompletedExternalOrder,
+  deleteStudentCompletedExternalOrdersBulk,
   cancelMealBooking,
   rescheduleMealBooking,
   getAdminSlots,

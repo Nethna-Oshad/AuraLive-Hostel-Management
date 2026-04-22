@@ -13,6 +13,16 @@ const mealBookingSchema = mongoose.Schema(
     externalShopName: { type: String, default: '' },
     externalMenuItem: { type: String, default: '' },
     externalAmount: { type: Number, default: 0 },
+    externalItems: [
+      {
+        supplierName: { type: String, required: true },
+        menuItemId: { type: String, default: '' },
+        itemName: { type: String, required: true },
+        quantity: { type: Number, required: true, min: 1 },
+        unitPrice: { type: Number, required: true, min: 0 },
+        lineTotal: { type: Number, required: true, min: 0 },
+      },
+    ],
     paymentStatus: {
       type: String,
       enum: ['NotRequired', 'Unpaid', 'Paid', 'Refunded'],
