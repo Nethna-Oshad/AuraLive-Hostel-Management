@@ -20,7 +20,17 @@ const MealDashboard = () => {
     }
   }, []);
 
-  const [dateFilter, setDateFilter] = useState('');
+  const [filters, setFilters] = useState({
+    date: '',
+    deliveryStatus: '',
+    paymentStatus: '',
+    search: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState({
+    date: '',
+    deliveryStatus: '',
+    paymentStatus: '',
+  });
   const [orders, setOrders] = useState([]);
   const [summary, setSummary] = useState({
     todayOrders: 0,
@@ -34,7 +44,9 @@ const MealDashboard = () => {
   const fetchOrdersAndSummary = async () => {
     try {
       const params = new URLSearchParams();
-      if (dateFilter) params.append('date', dateFilter);
+      if (appliedFilters.date) params.append('date', appliedFilters.date);
+      if (appliedFilters.deliveryStatus) params.append('deliveryStatus', appliedFilters.deliveryStatus);
+      if (appliedFilters.paymentStatus) params.append('paymentStatus', appliedFilters.paymentStatus);
       params.append('supplierEmail', userInfo?.email || '');
 
       const [ordersRes, summaryRes] = await Promise.all([
@@ -69,9 +81,31 @@ const MealDashboard = () => {
       setLoading(false);
     };
     load();
-  }, [dateFilter, userInfo]);
+  }, [appliedFilters, userInfo]);
 
-  const recentOrders = useMemo(() => orders.slice(0, 8), [orders]);
+  const filteredOrders = useMemo(() => {
+    const term = String(filters.search || '').trim().toLowerCase();
+    if (!term) return orders;
+    return orders.filter((order) => {
+      const itemNames = Array.isArray(order.externalItems)
+        ? order.externalItems.map((item) => item.itemName).join(' ')
+        : order.externalMenuItem || '';
+      const haystack = [
+        order.studentName,
+        order.studentEmail,
+        order.externalShopName,
+        order.externalMenuItem,
+        itemNames,
+        order.slotLabel,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [orders, filters.search]);
+
+  const recentOrders = useMemo(() => filteredOrders.slice(0, 8), [filteredOrders]);
 
   const handleDeliveryStatusChange = async (orderId, deliveryStatus) => {
     // Optimistic UI Update
@@ -123,27 +157,71 @@ const MealDashboard = () => {
         <main className="flex-1 overflow-y-auto p-8">
           
           {/* Header Section */}
-          <div className="flex flex-col gap-6 mb-8 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-6 mb-8">
             <div>
               <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Orders Dashboard</h2>
               <p className="text-sm text-slate-500 mt-1">Manage external meal orders and track delivery progress in real-time.</p>
             </div>
-            
-            <div className="flex items-center bg-white border border-slate-200 shadow-sm rounded-xl px-4 py-2.5 transition-all hover:shadow-md focus-within:ring-2 focus-within:ring-[#2872A1]">
-              <CalendarDays className="w-5 h-5 text-slate-400 mr-3" />
-              <div className="flex flex-col">
-                <label htmlFor="supplier-order-date" className="text-[10px] font-bold tracking-wider text-slate-400 uppercase leading-none mb-1">
-                  Filter by Date
-                </label>
+
+            <div className="grid grid-cols-1 gap-3 p-4 bg-white border border-slate-200 rounded-xl shadow-sm md:grid-cols-5">
+              <div className="flex items-center border border-slate-200 rounded-lg px-3">
+                <CalendarDays className="w-4 h-4 text-slate-400 mr-2" />
                 <input
                   id="supplier-order-date"
                   name="supplierOrderDate"
                   type="date"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="text-sm font-semibold text-slate-700 bg-transparent border-none outline-none p-0 cursor-pointer"
+                  value={filters.date}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, date: e.target.value }))}
+                  className="w-full py-2 text-sm text-slate-700 bg-transparent outline-none"
                 />
               </div>
+              <select
+                id="supplier-filter-delivery"
+                name="supplierFilterDelivery"
+                value={filters.deliveryStatus}
+                onChange={(e) => setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">All Delivery States</option>
+                <option value="AwaitingAcceptance">Awaiting Acceptance</option>
+                <option value="Pending">Order Accepted</option>
+                <option value="Preparing">Preparation Started</option>
+                <option value="Out for Delivery">Preparation Completed</option>
+                <option value="Delivered">Ready for Pickup</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+              <select
+                id="supplier-filter-payment"
+                name="supplierFilterPayment"
+                value={filters.paymentStatus}
+                onChange={(e) => setFilters((prev) => ({ ...prev, paymentStatus: e.target.value }))}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">All Payment States</option>
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
+              </select>
+              <input
+                id="supplier-search"
+                name="supplierSearch"
+                type="text"
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder="Search student, item, shop..."
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700"
+              />
+              <button
+                onClick={() =>
+                  setAppliedFilters({
+                    date: filters.date,
+                    deliveryStatus: filters.deliveryStatus,
+                    paymentStatus: filters.paymentStatus,
+                  })
+                }
+                className="px-4 py-2 text-sm font-bold text-white rounded-lg bg-[#2872A1] hover:bg-[#1f5a80]"
+              >
+                Apply Filters
+              </button>
             </div>
           </div>
 

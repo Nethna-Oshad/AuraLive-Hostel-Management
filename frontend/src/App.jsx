@@ -35,7 +35,6 @@ import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
 import MaintainerTasks from './pages/Maintainers/MaintainerTasks'; 
 import MaintainerHistory from './pages/Maintainers/MaintainerHistory'; 
 import MealDashboard from './pages/Meal/MealDashboard';
-import MealOrders from './pages/Meal/MealOrders';
 import MealMenuManagement from './pages/Meal/MealMenuManagement';
 import MealInsights from './pages/Meal/MealInsights';
 
@@ -114,7 +113,7 @@ function App() {
         <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> 
         <Route path="/maintainer/completed" element={<MaintainerHistory />} /> 
         <Route path="/meal/dashboard" element={<MealDashboard />} />
-        <Route path="/meal/orders" element={<MealOrders />} />
+        <Route path="/meal/orders" element={<MealDashboard />} />
         <Route path="/meal/menu" element={<MealMenuManagement />} />
         <Route path="/meal/insights" element={<MealInsights />} />
 
