@@ -320,11 +320,10 @@ const ThirdPartyMealDashboard = () => {
             return (
               <div key={step.status} className="flex flex-col items-center w-1/4 relative z-10">
                 <div
-                  className={`w-12 h-12 rounded-full border flex items-center justify-center ${
-                    isDoneOrCurrent
+                  className={`w-12 h-12 rounded-full border flex items-center justify-center ${isDoneOrCurrent
                       ? 'bg-[#CFE9FF] border-[#9FD3FF] text-[#2872A1]'
                       : 'bg-white border-[#CFE9FF] text-gray-400'
-                  }`}
+                    }`}
                 >
                   <StepIcon iconKey={step.iconKey} />
                 </div>
@@ -339,9 +338,8 @@ const ThirdPartyMealDashboard = () => {
             return (
               <p
                 key={step.status}
-                className={`w-1/4 text-[11px] font-semibold leading-tight text-center ${
-                  isDoneOrCurrent ? 'text-[#1f5a80]' : 'text-gray-400'
-                }`}
+                className={`w-1/4 text-[11px] font-semibold leading-tight text-center ${isDoneOrCurrent ? 'text-[#1f5a80]' : 'text-gray-400'
+                  }`}
               >
                 {step.label}
               </p>
@@ -484,11 +482,10 @@ const ThirdPartyMealDashboard = () => {
                     setActiveOrderTab('ongoing');
                     setShowAllBookings(false);
                   }}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                    isOngoingTabActive
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${isOngoingTabActive
                       ? 'bg-white text-[#1f5a80] shadow-sm'
                       : 'text-gray-600 hover:text-gray-800'
-                  }`}
+                    }`}
                 >
                   Ongoing Orders ({ongoingBookings.length})
                 </button>
@@ -498,11 +495,10 @@ const ThirdPartyMealDashboard = () => {
                     setActiveOrderTab('completed');
                     setShowAllBookings(false);
                   }}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                    !isOngoingTabActive
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${!isOngoingTabActive
                       ? 'bg-white text-emerald-700 shadow-sm'
                       : 'text-gray-600 hover:text-gray-800'
-                  }`}
+                    }`}
                 >
                   Completed Orders ({completedBookings.length})
                 </button>
@@ -558,20 +554,18 @@ const ThirdPartyMealDashboard = () => {
 
                           <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
                             <span
-                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
-                                booking.status === 'Cancelled'
+                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.status === 'Cancelled'
                                   ? 'text-red-600 bg-red-50 border-red-100'
                                   : 'text-emerald-600 bg-emerald-50 border-emerald-100'
-                              }`}
+                                }`}
                             >
                               {booking.status}
                             </span>
                             <span
-                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
-                                booking.paymentStatus === 'Paid'
+                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.paymentStatus === 'Paid'
                                   ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
                                   : 'text-amber-700 bg-amber-50 border-amber-100'
-                              }`}
+                                }`}
                             >
                               Payment: {booking.paymentStatus}
                             </span>
@@ -594,11 +588,10 @@ const ThirdPartyMealDashboard = () => {
                               <button
                                 onClick={() => handleCancelBooking(booking._id)}
                                 disabled={booking.paymentStatus === 'Paid'}
-                                className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
-                                  booking.paymentStatus === 'Paid'
+                                className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${booking.paymentStatus === 'Paid'
                                     ? 'bg-red-50 text-red-300 border border-red-100 cursor-not-allowed'
                                     : 'bg-red-100 text-red-700 hover:bg-red-200'
-                                }`}
+                                  }`}
                               >
                                 Cancel
                               </button>
@@ -666,20 +659,18 @@ const ThirdPartyMealDashboard = () => {
 
                           <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
                             <span
-                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
-                                booking.status === 'Cancelled'
+                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.status === 'Cancelled'
                                   ? 'text-red-600 bg-red-50 border-red-100'
                                   : 'text-emerald-600 bg-emerald-50 border-emerald-100'
-                              }`}
+                                }`}
                             >
                               {booking.status}
                             </span>
                             <span
-                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
-                                booking.paymentStatus === 'Paid'
+                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.paymentStatus === 'Paid'
                                   ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
                                   : 'text-amber-700 bg-amber-50 border-amber-100'
-                              }`}
+                                }`}
                             >
                               Payment: {booking.paymentStatus}
                             </span>

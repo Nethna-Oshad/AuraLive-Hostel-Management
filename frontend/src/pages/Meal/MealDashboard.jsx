@@ -54,10 +54,10 @@ const MealDashboard = () => {
     const pendingOrders = orders.filter(
       (order) =>
         order.status !== 'Cancelled' &&
-        ['Pending', 'Preparing', 'Out for Delivery'].includes(order.deliveryStatus || 'Pending')
+        ['AwaitingAcceptance', 'Pending', 'Preparing', 'Out for Delivery'].includes(order.deliveryStatus || 'AwaitingAcceptance')
     ).length;
     const deliveredOrders = orders.filter(
-      (order) => order.status !== 'Cancelled' && (order.deliveryStatus || 'Pending') === 'Delivered'
+      (order) => order.status !== 'Cancelled' && (order.deliveryStatus || 'AwaitingAcceptance') === 'Delivered'
     ).length;
     const unpaidOrders = orders.filter(
       (order) => order.status !== 'Cancelled' && order.paymentStatus === 'Unpaid'
@@ -111,6 +111,8 @@ const MealDashboard = () => {
         return 'bg-blue-50 text-blue-700 border-blue-200 focus:ring-blue-500';
       case 'Cancelled':
         return 'bg-red-50 text-red-700 border-red-200 focus:ring-red-500';
+      case 'AwaitingAcceptance':
+        return 'bg-slate-50 text-slate-700 border-slate-200 focus:ring-slate-500';
       case 'Pending':
       default:
         return 'bg-amber-50 text-amber-700 border-amber-200 focus:ring-amber-500';
@@ -288,14 +290,18 @@ const MealDashboard = () => {
                             <select
                               id={`supplier-delivery-${order._id}`}
                               name={`supplierDelivery-${order._id}`}
-                              value={order.deliveryStatus || 'Pending'}
+                              value={order.deliveryStatus || 'AwaitingAcceptance'}
                               onChange={(e) => handleDeliveryStatusChange(order._id, e.target.value)}
-                              className={`w-full appearance-none px-3 py-2 pr-8 text-xs font-bold tracking-wide rounded-lg border outline-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-offset-1 ${getStatusStyles(order.deliveryStatus || 'Pending')}`}
+                              disabled={order.status === 'Cancelled' || (order.paymentStatus !== 'Paid' && order.deliveryStatus !== 'AwaitingAcceptance')}
+                              className={`w-full appearance-none px-3 py-2 pr-8 text-xs font-bold tracking-wide rounded-lg border outline-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-offset-1 ${getStatusStyles(order.deliveryStatus || 'AwaitingAcceptance')}`}
                             >
-                              <option value="Pending">Pending</option>
-                              <option value="Preparing">Preparing</option>
-                              <option value="Out for Delivery">Out for Delivery</option>
-                              <option value="Delivered">Delivered</option>
+                              <option value="AwaitingAcceptance" disabled>
+                                Awaiting Acceptance
+                              </option>
+                              <option value="Pending">Order Accepted</option>
+                              <option value="Preparing">Preparation Started</option>
+                              <option value="Out for Delivery">Preparation Completed</option>
+                              <option value="Delivered">Ready for Pickup</option>
                               <option value="Cancelled">Cancelled</option>
                             </select>
                             {/* Custom dropdown arrow to replace the native one removed by appearance-none */}

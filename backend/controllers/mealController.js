@@ -235,6 +235,7 @@ const createExternalOrder = async (req, res) => {
       externalMenuItem: matchedMenuItem.itemName || menuItem,
       externalAmount,
       paymentStatus: 'Unpaid',
+      deliveryStatus: 'AwaitingAcceptance',
     });
 
     res.status(201).json(booking);
@@ -319,6 +320,7 @@ const createExternalCartOrder = async (req, res) => {
       externalAmount,
       externalItems: normalizedItems,
       paymentStatus: 'Unpaid',
+      deliveryStatus: 'AwaitingAcceptance',
     });
 
     res.status(201).json(booking);
@@ -988,9 +990,15 @@ const updateSupplierDeliveryStatus = async (req, res) => {
     if (order.externalShopName !== supplier.name) {
       return res.status(403).json({ message: 'You can only update your own shop orders.' });
     }
-    if (order.paymentStatus !== 'Paid') {
-      return res.status(400).json({ message: 'This order is not paid yet. Update status after payment confirmation.' });
+
+    // NEW LOGIC: Allow transitioning from AwaitingAcceptance to Pending (Order Accepted) even if unpaid.
+    // For any other transition, require paymentStatus === 'Paid'.
+    const isAccepting = order.deliveryStatus === 'AwaitingAcceptance' && deliveryStatus === 'Pending';
+    
+    if (!isAccepting && order.paymentStatus !== 'Paid') {
+      return res.status(400).json({ message: 'This order is not paid yet. Subsequent steps require payment confirmation.' });
     }
+
     if (order.status === 'Cancelled') {
       return res.status(400).json({ message: 'Cancelled orders cannot be updated.' });
     }

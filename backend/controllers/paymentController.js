@@ -2,7 +2,7 @@ const Booking = require('../models/bookingModel');
 const MealBooking = require('../models/mealBookingModel');
 const Room = require('../models/roomModel');
 const Invoice = require('../models/invoiceModel');
-const Student = require('../models/studentModel'); 
+const Student = require('../models/studentModel');
 
 // Stripe requires card charges to be at least ~USD 0.50 equivalent.
 // For LKR, keep a safe floor to avoid conversion-edge rejections.
@@ -15,11 +15,11 @@ const createCheckoutSession = async (req, res) => {
   try {
     if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe secret key is missing.");
     const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-    
+
     const { bookingId } = req.body;
     const booking = await Booking.findById(bookingId);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
-    
+
     const room = await Room.findById(booking.roomId);
     if (!room) return res.status(404).json({ message: 'Room not found' });
 
@@ -58,13 +58,13 @@ const verifyPayment = async (req, res) => {
     // Mark as paid
     booking.paymentStatus = 'Paid';
     booking.status = 'Confirmed';
-    
+
     const startDate = booking.expectedMoveInDate ? new Date(booking.expectedMoveInDate) : new Date();
-    booking.paidUntil = startDate; 
+    booking.paidUntil = startDate;
     await booking.save();
 
     // Add to room occupancy
-    room.currentOccupancy = (room.currentOccupancy || 0) + 1; 
+    room.currentOccupancy = (room.currentOccupancy || 0) + 1;
     if (room.currentOccupancy >= room.maxCapacity) room.status = 'Full';
     await room.save();
 
@@ -77,7 +77,7 @@ const verifyPayment = async (req, res) => {
       studentName: booking.studentName,
       roomNumber: booking.roomNumber,
       description: `First Month Rent & Key Money (Room ${booking.roomNumber})`,
-      monthName: firstMonthName, 
+      monthName: firstMonthName,
       amount: (room.monthlyRent || 0) + (room.keyMoney || 0),
       status: 'Paid',
       stripeSessionId: booking.stripeSessionId || 'Manual/Test',
@@ -103,7 +103,7 @@ const createMonthlyCheckout = async (req, res) => {
     const lastPaidDate = booking.paidUntil ? new Date(booking.paidUntil) : new Date(booking.createdAt);
     const nextMonthDate = new Date(lastPaidDate);
     nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-    
+
     const monthName = nextMonthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
     const session = await stripe.checkout.sessions.create({
@@ -136,13 +136,13 @@ const verifyMonthlyPayment = async (req, res) => {
   try {
     const { bookingId } = req.body;
     const booking = await Booking.findById(bookingId);
-    
+
     if (booking.monthlyRentStatus === 'Paid') {
       return res.json({ success: true, message: 'Monthly rent is already paid. No duplicate invoice created.' });
     }
 
     const room = await Room.findById(booking.roomId);
-    
+
     // Update booking paid status
     const currentDate = booking.paidUntil ? new Date(booking.paidUntil) : new Date(booking.createdAt);
     currentDate.setMonth(currentDate.getMonth() + 1);
@@ -184,6 +184,10 @@ const createMealCheckoutSession = async (req, res) => {
     const mealBooking = await MealBooking.findById(mealBookingId);
     if (!mealBooking || mealBooking.type !== 'External') return res.status(404).json({ message: 'External meal order not found.' });
     if (mealBooking.paymentStatus === 'Paid') return res.status(400).json({ message: 'This meal order is already paid.' });
+    
+    if (mealBooking.deliveryStatus === 'AwaitingAcceptance') {
+      return res.status(400).json({ message: 'This order must be accepted by the supplier before you can process the payment.' });
+    }
 
     const checkoutAmount = Number(mealBooking.externalAmount);
     if (!Number.isFinite(checkoutAmount) || checkoutAmount <= 0) {
@@ -197,26 +201,26 @@ const createMealCheckoutSession = async (req, res) => {
     const lineItems =
       Array.isArray(mealBooking.externalItems) && mealBooking.externalItems.length > 0
         ? mealBooking.externalItems.map((item) => ({
+          price_data: {
+            currency: 'lkr',
+            product_data: {
+              name: `${item.itemName} - ${item.supplierName}`,
+              description: `External meal (${mealBooking.slotLabel})`,
+            },
+            unit_amount: Math.round((Number(item.unitPrice) || 0) * 100),
+          },
+          quantity: Number(item.quantity) || 1,
+        }))
+        : [
+          {
             price_data: {
               currency: 'lkr',
-              product_data: {
-                name: `${item.itemName} - ${item.supplierName}`,
-                description: `External meal (${mealBooking.slotLabel})`,
-              },
-              unit_amount: Math.round((Number(item.unitPrice) || 0) * 100),
+              product_data: { name: `External Meal Order - ${mealBooking.externalShopName}`, description: `${mealBooking.externalMenuItem} (${mealBooking.slotLabel})` },
+              unit_amount: Math.round(checkoutAmount * 100),
             },
-            quantity: Number(item.quantity) || 1,
-          }))
-        : [
-            {
-              price_data: {
-                currency: 'lkr',
-                product_data: { name: `External Meal Order - ${mealBooking.externalShopName}`, description: `${mealBooking.externalMenuItem} (${mealBooking.slotLabel})` },
-                unit_amount: Math.round(checkoutAmount * 100),
-              },
-              quantity: 1,
-            },
-          ];
+            quantity: 1,
+          },
+        ];
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -270,7 +274,7 @@ const verifyMealPayment = async (req, res) => {
 module.exports = {
   createCheckoutSession,
   verifyPayment,
-  createMonthlyCheckout, 
+  createMonthlyCheckout,
   verifyMonthlyPayment,
   createMealCheckoutSession,
   verifyMealPayment,

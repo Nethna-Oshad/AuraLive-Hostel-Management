@@ -148,9 +148,8 @@ const MealOrders = () => {
                         </td>
                         <td className="p-4 font-semibold text-gray-800">Rs. {order.externalAmount || 0}</td>
                         <td className="p-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            order.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                          }`}>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${order.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                            }`}>
                             {order.paymentStatus}
                           </span>
                         </td>
@@ -161,11 +160,10 @@ const MealOrders = () => {
                             value={order.deliveryStatus || 'AwaitingAcceptance'}
                             onChange={(e) => handleDeliveryStatusChange(order._id, e.target.value)}
                             disabled={order.paymentStatus !== 'Paid' || order.status === 'Cancelled'}
-                            className={`px-2 py-1 text-xs font-semibold border border-gray-200 rounded-md ${
-                              order.paymentStatus !== 'Paid' || order.status === 'Cancelled'
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : ''
-                            }`}
+                            className={`px-2 py-1 text-xs font-semibold border border-gray-200 rounded-md ${order.paymentStatus !== 'Paid' || order.status === 'Cancelled'
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : ''
+                              }`}
                           >
                             <option value="AwaitingAcceptance" disabled>
                               Awaiting Supplier Acceptance

@@ -30,7 +30,7 @@ const mealBookingSchema = mongoose.Schema(
     },
     deliveryStatus: {
       type: String,
-      enum: ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'],
+      enum: ['AwaitingAcceptance', 'Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'],
       default: 'Pending',
     },
     stripeSessionId: { type: String, default: '' },
