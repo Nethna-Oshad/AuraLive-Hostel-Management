@@ -35,6 +35,7 @@ const mealBookingSchema = mongoose.Schema(
     },
     stripeSessionId: { type: String, default: '' },
     paidAt: { type: Date },
+    orderReference: { type: String, default: '', index: true },
   },
   { timestamps: true }
 );

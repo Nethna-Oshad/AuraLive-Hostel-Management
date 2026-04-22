@@ -63,8 +63,15 @@ const MealInsights = () => {
   const topItems = useMemo(() => {
     const map = {};
     orders.forEach((order) => {
-      const key = order.externalMenuItem || 'Unknown Item';
-      map[key] = (map[key] || 0) + 1;
+      if (Array.isArray(order.externalItems) && order.externalItems.length > 0) {
+        order.externalItems.forEach((line) => {
+          const key = line.itemName || 'Unknown Item';
+          map[key] = (map[key] || 0) + (Number(line.quantity) || 0);
+        });
+      } else {
+        const key = order.externalMenuItem || 'Unknown Item';
+        map[key] = (map[key] || 0) + 1;
+      }
     });
     return Object.entries(map)
       .map(([item, count]) => ({ item, count }))

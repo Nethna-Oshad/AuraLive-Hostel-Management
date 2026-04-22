@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck, ChevronDown, ChevronUp, X, Trash2, ShoppingCart, Plus, Minus } from 'lucide-react';
+import QRCode from 'qrcode';
+import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck, ChevronDown, ChevronUp, X, Trash2, ShoppingCart, Plus, Minus, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -365,6 +366,67 @@ const ThirdPartyMealDashboard = () => {
   const cartTotal = cartItems.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * item.quantity, 0);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
+  const buildQrTargetUrl = (booking) => {
+    const reference = booking?.orderReference ? String(booking.orderReference).trim() : '';
+    if (!reference) return '';
+    return `${window.location.origin}/meal-order/${encodeURIComponent(reference)}`;
+  };
+
+  const buildQrTextPayload = (booking) => {
+    const qrTargetUrl = buildQrTargetUrl(booking);
+    const lines = [
+      qrTargetUrl,
+      `Ref No: ${booking?.orderReference || 'N/A'}`,
+      `Student: ${booking?.studentName || 'N/A'}`,
+      `Shop: ${booking?.externalShopName || 'N/A'}`,
+      `Date: ${booking?.bookingDate || 'N/A'}`,
+      `Slot: ${booking?.slotLabel || 'N/A'}`,
+      'Items:',
+    ];
+
+    if (Array.isArray(booking?.externalItems) && booking.externalItems.length > 0) {
+      booking.externalItems.forEach((item, index) => {
+        const name = item?.itemName || 'Item';
+        const qty = Number(item?.quantity) || 0;
+        const lineTotal = Number(item?.lineTotal) || 0;
+        lines.push(`${index + 1}. ${name} | Qty: ${qty} | Rs. ${lineTotal}`);
+      });
+    } else {
+      const menuItem = booking?.externalMenuItem || 'N/A';
+      const amount = Number(booking?.externalAmount) || 0;
+      lines.push(`1. ${menuItem} | Qty: 1 | Rs. ${amount}`);
+    }
+
+    lines.push(`Total: Rs. ${Number(booking?.externalAmount) || 0}`);
+    lines.push(`Payment: ${booking?.paymentStatus || 'N/A'}`);
+    lines.push(`Delivery: ${booking?.deliveryStatus || 'N/A'}`);
+
+    return lines.join('\n');
+  };
+
+  const handleDownloadOrderQr = async (booking) => {
+    try {
+      if (!booking?.orderReference) {
+        toast.error('Reference number is not ready yet for this order.');
+        return;
+      }
+      const qrPayload = buildQrTextPayload(booking);
+      const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+        width: 720,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+      });
+      const link = document.createElement('a');
+      link.href = qrDataUrl;
+      link.download = `${booking.orderReference}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      toast.error('Failed to download QR code.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -574,6 +636,11 @@ const ThirdPartyMealDashboard = () => {
                                 Supplier Status: {booking.deliveryStatus || 'Pending'}
                               </span>
                             )}
+                            {booking.paymentStatus === 'Paid' && booking.orderReference && (
+                              <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-indigo-700 bg-indigo-50 border-indigo-100">
+                                Ref: {booking.orderReference}
+                              </span>
+                            )}
 
                             {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
                               <button
@@ -679,6 +746,11 @@ const ThirdPartyMealDashboard = () => {
                                 Supplier Status: {booking.deliveryStatus || 'Pending'}
                               </span>
                             )}
+                            {booking.paymentStatus === 'Paid' && booking.orderReference && (
+                              <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-indigo-700 bg-indigo-50 border-indigo-100">
+                                Ref: {booking.orderReference}
+                              </span>
+                            )}
                             <button
                               onClick={() => handleDeleteCompletedOrder(booking._id)}
                               className="p-2 rounded-full border border-red-100 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
@@ -688,6 +760,26 @@ const ThirdPartyMealDashboard = () => {
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
+                          {booking.status !== 'Cancelled' &&
+                            booking.paymentStatus === 'Paid' &&
+                            booking.deliveryStatus === 'Delivered' && (
+                              <div className="w-full mt-3 rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-bold text-indigo-900">Collection QR Ready</p>
+                                  <p className="text-xs text-indigo-700 mt-1">
+                                    Show this QR at pickup. Ref: {booking.orderReference || 'N/A'}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadOrderQr(booking)}
+                                  className="inline-flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-full border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download QR
+                                </button>
+                              </div>
+                            )}
                         </div>
                       ))
                     )}

@@ -22,19 +22,40 @@ const MealDashboard = () => {
 
   const [dateFilter, setDateFilter] = useState('');
   const [orders, setOrders] = useState([]);
+  const [summary, setSummary] = useState({
+    todayOrders: 0,
+    pendingOrders: 0,
+    deliveredOrders: 0,
+    unpaidOrders: 0,
+    revenueToday: 0,
+  });
   const [loading, setLoading] = useState(true);
 
-  const fetchOrders = async () => {
+  const fetchOrdersAndSummary = async () => {
     try {
       const params = new URLSearchParams();
       if (dateFilter) params.append('date', dateFilter);
       params.append('supplierEmail', userInfo?.email || '');
-      const response = await fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load supplier orders.');
+
+      const [ordersRes, summaryRes] = await Promise.all([
+        fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`),
+        fetch(`http://localhost:5000/api/meals/supplier/summary?${params.toString()}`),
+      ]);
+
+      const ordersData = await ordersRes.json();
+      const summaryData = await summaryRes.json();
+
+      if (!ordersRes.ok || !summaryRes.ok) {
+        throw new Error(summaryData.message || ordersData.message || 'Failed to load supplier orders.');
       }
-      setOrders(Array.isArray(data) ? data : []);
+      setOrders(Array.isArray(ordersData) ? ordersData : []);
+      setSummary({
+        todayOrders: summaryData.todayOrders || 0,
+        pendingOrders: summaryData.pendingOrders || 0,
+        deliveredOrders: summaryData.deliveredOrders || 0,
+        unpaidOrders: summaryData.unpaidOrders || 0,
+        revenueToday: summaryData.revenueToday || 0,
+      });
     } catch {
       toast.error('Failed to load supplier orders.');
     }
@@ -44,36 +65,11 @@ const MealDashboard = () => {
     const load = async () => {
       if (!userInfo || userInfo.role !== 'MealSupplier') return;
       setLoading(true);
-      await fetchOrders();
+      await fetchOrdersAndSummary();
       setLoading(false);
     };
     load();
   }, [dateFilter, userInfo]);
-
-  const summary = useMemo(() => {
-    const pendingOrders = orders.filter(
-      (order) =>
-        order.status !== 'Cancelled' &&
-        ['AwaitingAcceptance', 'Pending', 'Preparing', 'Out for Delivery'].includes(order.deliveryStatus || 'AwaitingAcceptance')
-    ).length;
-    const deliveredOrders = orders.filter(
-      (order) => order.status !== 'Cancelled' && (order.deliveryStatus || 'AwaitingAcceptance') === 'Delivered'
-    ).length;
-    const unpaidOrders = orders.filter(
-      (order) => order.status !== 'Cancelled' && order.paymentStatus === 'Unpaid'
-    ).length;
-    const revenueToday = orders
-      .filter((order) => order.status !== 'Cancelled' && order.paymentStatus === 'Paid')
-      .reduce((sum, order) => sum + (Number(order.externalAmount) || 0), 0);
-
-    return {
-      todayOrders: orders.length,
-      pendingOrders,
-      deliveredOrders,
-      unpaidOrders,
-      revenueToday,
-    };
-  }, [orders]);
 
   const recentOrders = useMemo(() => orders.slice(0, 8), [orders]);
 
@@ -96,7 +92,7 @@ const MealDashboard = () => {
       toast.success('Delivery status updated.');
     } catch (error) {
       toast.error(error.message || 'Failed to update delivery status.');
-      await fetchOrders(); // Revert on failure
+      await fetchOrdersAndSummary(); // Revert on failure
     }
   };
 
@@ -252,6 +248,17 @@ const MealDashboard = () => {
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {recentOrders.map((order) => (
                       <tr key={order._id} className="hover:bg-slate-50/50 transition-colors duration-200">
+                        {(() => {
+                          const canAcceptUnpaid =
+                            order.deliveryStatus === 'AwaitingAcceptance' &&
+                            order.paymentStatus !== 'Paid' &&
+                            order.status !== 'Cancelled';
+                          const canCancelUnpaid = canAcceptUnpaid;
+                          const disableStatusUpdate =
+                            order.status === 'Cancelled' || (order.paymentStatus !== 'Paid' && !canAcceptUnpaid);
+
+                          return (
+                            <>
                         
                         {/* Student Column */}
                         <td className="px-6 py-4">
@@ -267,8 +274,18 @@ const MealDashboard = () => {
 
                         {/* Order Column */}
                         <td className="px-6 py-4">
-                          <p className="font-bold text-slate-800">{order.externalMenuItem || 'Kitchen Booking'}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">{order.externalShopName || '-'}</p>
+                          {Array.isArray(order.externalItems) && order.externalItems.length > 0 ? (
+                            <div className="space-y-1">
+                              {order.externalItems.map((item, idx) => (
+                                <p key={idx} className="font-bold text-slate-800 text-xs">
+                                  {item.itemName} <span className="text-slate-500 font-normal">x{item.quantity}</span>
+                                </p>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="font-bold text-slate-800 text-xs">{order.externalMenuItem || 'Kitchen Booking'}</p>
+                          )}
+                          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">{order.externalShopName || '-'}</p>
                         </td>
 
                         {/* Payment Column */}
@@ -290,19 +307,17 @@ const MealDashboard = () => {
                             <select
                               id={`supplier-delivery-${order._id}`}
                               name={`supplierDelivery-${order._id}`}
-                              value={order.deliveryStatus || 'AwaitingAcceptance'}
+                              value={order.deliveryStatus || 'Pending'}
                               onChange={(e) => handleDeliveryStatusChange(order._id, e.target.value)}
-                              disabled={order.status === 'Cancelled' || (order.paymentStatus !== 'Paid' && order.deliveryStatus !== 'AwaitingAcceptance')}
-                              className={`w-full appearance-none px-3 py-2 pr-8 text-xs font-bold tracking-wide rounded-lg border outline-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-offset-1 ${getStatusStyles(order.deliveryStatus || 'AwaitingAcceptance')}`}
+                              disabled={disableStatusUpdate}
+                              className={`w-full appearance-none px-3 py-2 pr-8 text-xs font-bold tracking-wide rounded-lg border outline-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-offset-1 ${getStatusStyles(order.deliveryStatus || 'Pending')}`}
                             >
-                              <option value="AwaitingAcceptance" disabled>
-                                Awaiting Acceptance
-                              </option>
+                              <option value="AwaitingAcceptance">Awaiting Acceptance</option>
                               <option value="Pending">Order Accepted</option>
-                              <option value="Preparing">Preparation Started</option>
-                              <option value="Out for Delivery">Preparation Completed</option>
-                              <option value="Delivered">Ready for Pickup</option>
-                              <option value="Cancelled">Cancelled</option>
+                              {canCancelUnpaid && <option value="Cancelled">Cancelled</option>}
+                              {!canAcceptUnpaid && <option value="Preparing">Preparation Started</option>}
+                              {!canAcceptUnpaid && <option value="Out for Delivery">Preparation Completed</option>}
+                              {!canAcceptUnpaid && <option value="Delivered">Ready for Pickup</option>}
                             </select>
                             {/* Custom dropdown arrow to replace the native one removed by appearance-none */}
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-current opacity-70">
@@ -313,6 +328,9 @@ const MealDashboard = () => {
                           </div>
                         </td>
 
+                            </>
+                          );
+                        })()}
                       </tr>
                     ))}
                   </tbody>

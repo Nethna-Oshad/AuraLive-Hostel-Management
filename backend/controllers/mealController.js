@@ -338,6 +338,40 @@ const getStudentMealBookings = async (req, res) => {
   }
 };
 
+const getMealOrderByReference = async (req, res) => {
+  try {
+    const orderReference = String(req.params.reference || '').trim().toUpperCase();
+    if (!orderReference) {
+      return res.status(400).json({ message: 'Order reference is required.' });
+    }
+
+    const booking = await MealBooking.findOne({ orderReference, type: 'External' });
+    if (!booking) {
+      return res.status(404).json({ message: 'Meal order not found for this reference.' });
+    }
+
+    res.json({
+      _id: booking._id,
+      orderReference: booking.orderReference,
+      bookingDate: booking.bookingDate,
+      slotLabel: booking.slotLabel,
+      studentName: booking.studentName,
+      studentEmail: booking.studentEmail,
+      externalShopName: booking.externalShopName,
+      externalMenuItem: booking.externalMenuItem,
+      externalAmount: booking.externalAmount,
+      externalItems: booking.externalItems || [],
+      paymentStatus: booking.paymentStatus,
+      deliveryStatus: booking.deliveryStatus,
+      status: booking.status,
+      paidAt: booking.paidAt || null,
+      createdAt: booking.createdAt,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const deleteStudentCompletedExternalOrder = async (req, res) => {
   try {
     const { studentEmail } = req.query;
@@ -622,16 +656,46 @@ const getSupplierOrders = async (req, res) => {
       return res.status(400).json({ message: 'Valid supplierEmail is required.' });
     }
 
-    const query = {
-      type: 'External',
-      externalShopName: supplier.name,
-    };
+    const query = { type: 'External' };
     if (date) query.bookingDate = date;
-    if (deliveryStatus) query.deliveryStatus = deliveryStatus;
     if (paymentStatus) query.paymentStatus = paymentStatus;
+    if (deliveryStatus && deliveryStatus !== 'AwaitingAcceptance') query.deliveryStatus = deliveryStatus;
 
-    const orders = await MealBooking.find(query).sort({ createdAt: -1 });
-    res.json(orders);
+    const rawOrders = await MealBooking.find(query).sort({ createdAt: -1 });
+    const normalizedOrders = rawOrders
+      .map((order) => {
+        const supplierItems = Array.isArray(order.externalItems)
+          ? order.externalItems.filter((item) => item.supplierName === supplier.name)
+          : [];
+        const hasSupplierItems = supplierItems.length > 0;
+        const isDirectSupplierOrder = order.externalShopName === supplier.name;
+        if (!hasSupplierItems && !isDirectSupplierOrder) return null;
+
+        const supplierAmount = hasSupplierItems
+          ? supplierItems.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0)
+          : Number(order.externalAmount) || 0;
+        const supplierMenuItem = hasSupplierItems
+          ? `${supplierItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} item(s)`
+          : order.externalMenuItem;
+
+        const plain = order.toObject();
+        return {
+          ...plain,
+          externalAmount: supplierAmount,
+          externalMenuItem: supplierMenuItem,
+          externalItems: hasSupplierItems ? supplierItems : plain.externalItems || [],
+          externalShopName: supplier.name,
+          deliveryStatus: plain.deliveryStatus || 'Pending',
+        };
+      })
+      .filter(Boolean);
+
+    // Backward compatibility for legacy filter value used by UI.
+    if (deliveryStatus === 'AwaitingAcceptance') {
+      return res.json(normalizedOrders.filter((order) => (order.deliveryStatus || 'Pending') === 'Pending'));
+    }
+
+    res.json(normalizedOrders);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -639,47 +703,51 @@ const getSupplierOrders = async (req, res) => {
 
 const getSupplierSummary = async (req, res) => {
   try {
-    const { supplierEmail } = req.query;
+    const { supplierEmail, date } = req.query;
     const supplier = await resolveSupplierByEmail(supplierEmail);
     if (!supplier) {
       return res.status(400).json({ message: 'Valid supplierEmail is required.' });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const baseQuery = { type: 'External', externalShopName: supplier.name };
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+    const orders = await MealBooking.find({ type: 'External', bookingDate: targetDate }).sort({ createdAt: -1 });
 
-    const [todayOrders, pendingOrders, deliveredOrders, paidRevenue, unpaidOrders] = await Promise.all([
-      MealBooking.countDocuments({ ...baseQuery, bookingDate: today }),
-      MealBooking.countDocuments({
-        ...baseQuery,
-        bookingDate: today,
-        deliveryStatus: { $in: ['Pending', 'Preparing', 'Out for Delivery'] },
-        status: { $ne: 'Cancelled' },
-      }),
-      MealBooking.countDocuments({
-        ...baseQuery,
-        bookingDate: today,
-        deliveryStatus: 'Delivered',
-        status: { $ne: 'Cancelled' },
-      }),
-      MealBooking.aggregate([
-        { $match: { ...baseQuery, bookingDate: today, paymentStatus: 'Paid', status: { $ne: 'Cancelled' } } },
-        { $group: { _id: null, total: { $sum: '$externalAmount' } } },
-      ]),
-      MealBooking.countDocuments({
-        ...baseQuery,
-        bookingDate: today,
-        paymentStatus: 'Unpaid',
-        status: { $ne: 'Cancelled' },
-      }),
-    ]);
+    const supplierOrders = orders
+      .map((order) => {
+        const supplierItems = Array.isArray(order.externalItems)
+          ? order.externalItems.filter((item) => item.supplierName === supplier.name)
+          : [];
+        const hasSupplierItems = supplierItems.length > 0;
+        const isDirectSupplierOrder = order.externalShopName === supplier.name;
+        if (!hasSupplierItems && !isDirectSupplierOrder) return null;
+        const supplierAmount = hasSupplierItems
+          ? supplierItems.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0)
+          : Number(order.externalAmount) || 0;
+        return {
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          deliveryStatus: order.deliveryStatus || 'Pending',
+          externalAmount: supplierAmount,
+        };
+      })
+      .filter(Boolean);
+
+    const activeSupplierOrders = supplierOrders.filter((order) => order.status !== 'Cancelled');
+    const pendingOrders = activeSupplierOrders.filter((order) =>
+      ['Pending', 'Preparing', 'Out for Delivery'].includes(order.deliveryStatus)
+    ).length;
+    const deliveredOrders = activeSupplierOrders.filter((order) => order.deliveryStatus === 'Delivered').length;
+    const unpaidOrders = activeSupplierOrders.filter((order) => order.paymentStatus === 'Unpaid').length;
+    const revenueToday = activeSupplierOrders
+      .filter((order) => order.paymentStatus === 'Paid')
+      .reduce((sum, order) => sum + (Number(order.externalAmount) || 0), 0);
 
     res.json({
-      date: today,
-      todayOrders,
+      date: targetDate,
+      todayOrders: supplierOrders.length,
       pendingOrders,
       deliveredOrders,
-      revenueToday: paidRevenue[0]?.total || 0,
+      revenueToday,
       unpaidOrders,
     });
   } catch (error) {
@@ -991,12 +1059,19 @@ const updateSupplierDeliveryStatus = async (req, res) => {
       return res.status(403).json({ message: 'You can only update your own shop orders.' });
     }
 
-    // NEW LOGIC: Allow transitioning from AwaitingAcceptance to Pending (Order Accepted) even if unpaid.
-    // For any other transition, require paymentStatus === 'Paid'.
+    // Before payment, supplier can only accept or cancel while in AwaitingAcceptance.
     const isAccepting = order.deliveryStatus === 'AwaitingAcceptance' && deliveryStatus === 'Pending';
-    
-    if (!isAccepting && order.paymentStatus !== 'Paid') {
-      return res.status(400).json({ message: 'This order is not paid yet. Subsequent steps require payment confirmation.' });
+    const isCancellingBeforePayment = order.deliveryStatus === 'AwaitingAcceptance' && deliveryStatus === 'Cancelled';
+    const isPaidOrder = order.paymentStatus === 'Paid';
+
+    if (!isPaidOrder && !isAccepting && !isCancellingBeforePayment) {
+      return res.status(400).json({
+        message: 'Before payment, you can only accept or cancel an order that is awaiting acceptance.',
+      });
+    }
+
+    if (isPaidOrder && deliveryStatus === 'Cancelled') {
+      return res.status(400).json({ message: 'Paid orders cannot be cancelled by supplier.' });
     }
 
     if (order.status === 'Cancelled') {
@@ -1020,6 +1095,7 @@ module.exports = {
   createExternalOrder,
   createExternalCartOrder,
   getStudentMealBookings,
+  getMealOrderByReference,
   deleteStudentCompletedExternalOrder,
   deleteStudentCompletedExternalOrdersBulk,
   cancelMealBooking,

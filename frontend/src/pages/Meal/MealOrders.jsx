@@ -90,7 +90,6 @@ const MealOrders = () => {
               className="px-3 py-2 text-sm border border-gray-200 rounded-lg"
             >
               <option value="">All Delivery States</option>
-              <option value="AwaitingAcceptance">Awaiting Supplier Acceptance</option>
               <option value="Pending">Order Accepted</option>
               <option value="Preparing">Preparation Started</option>
               <option value="Out for Delivery">Preparation Completed</option>
@@ -135,13 +134,34 @@ const MealOrders = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-sm">
-                    {orders.map((order) => (
+                    {orders.map((order) => {
+                      const canAcceptUnpaid =
+                        order.deliveryStatus === 'AwaitingAcceptance' &&
+                        order.paymentStatus !== 'Paid' &&
+                        order.status !== 'Cancelled';
+                      const canCancelUnpaid = canAcceptUnpaid;
+                      const disableStatusUpdate =
+                        order.status === 'Cancelled' || (order.paymentStatus !== 'Paid' && !canAcceptUnpaid);
+
+                      return (
                       <tr key={order._id} className="hover:bg-gray-50">
                         <td className="p-4">
                           <p className="font-semibold text-gray-800">{order.studentName}</p>
                           <p className="text-xs text-gray-500">{order.studentEmail}</p>
                         </td>
-                        <td className="p-4 text-gray-700">{order.externalMenuItem}</td>
+                        <td className="p-4 text-gray-700">
+                          {Array.isArray(order.externalItems) && order.externalItems.length > 0 ? (
+                            <div className="space-y-1">
+                              {order.externalItems.map((item, idx) => (
+                                <p key={idx} className="text-sm font-medium">
+                                  {item.itemName} <span className="text-gray-500 font-normal">x{item.quantity}</span>
+                                </p>
+                              ))}
+                            </div>
+                          ) : (
+                            order.externalMenuItem
+                          )}
+                        </td>
                         <td className="p-4 text-gray-600">
                           <p>{order.bookingDate}</p>
                           <p className="text-xs">{order.slotLabel}</p>
@@ -157,26 +177,25 @@ const MealOrders = () => {
                           <select
                             id={`supplier-order-delivery-${order._id}`}
                             name={`supplierOrderDelivery-${order._id}`}
-                            value={order.deliveryStatus || 'AwaitingAcceptance'}
+                            value={order.deliveryStatus || 'Pending'}
                             onChange={(e) => handleDeliveryStatusChange(order._id, e.target.value)}
-                            disabled={order.paymentStatus !== 'Paid' || order.status === 'Cancelled'}
-                            className={`px-2 py-1 text-xs font-semibold border border-gray-200 rounded-md ${order.paymentStatus !== 'Paid' || order.status === 'Cancelled'
+                            disabled={disableStatusUpdate}
+                            className={`px-2 py-1 text-xs font-semibold border border-gray-200 rounded-md ${disableStatusUpdate
                               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                               : ''
                               }`}
                           >
-                            <option value="AwaitingAcceptance" disabled>
-                              Awaiting Supplier Acceptance
-                            </option>
+                            <option value="AwaitingAcceptance">Awaiting Acceptance</option>
                             <option value="Pending">Accept Order</option>
-                            <option value="Preparing">Preparation Started</option>
-                            <option value="Out for Delivery">Preparation Completed</option>
-                            <option value="Delivered">Ready for Pickup</option>
-                            <option value="Cancelled">Cancelled</option>
+                            {canCancelUnpaid && <option value="Cancelled">Cancelled</option>}
+                            {!canAcceptUnpaid && <option value="Preparing">Preparation Started</option>}
+                            {!canAcceptUnpaid && <option value="Out for Delivery">Preparation Completed</option>}
+                            {!canAcceptUnpaid && <option value="Delivered">Ready for Pickup</option>}
                           </select>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>

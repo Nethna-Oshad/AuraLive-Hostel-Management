@@ -8,6 +8,24 @@ const Student = require('../models/studentModel');
 // For LKR, keep a safe floor to avoid conversion-edge rejections.
 const MIN_STRIPE_LKR_AMOUNT = 160;
 
+const formatDateForRef = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+};
+
+const generateMealOrderReference = async () => {
+  const datePart = formatDateForRef();
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const randomPart = String(Math.floor(1000 + Math.random() * 9000));
+    const candidate = `MEAL-${datePart}-${randomPart}`;
+    const exists = await MealBooking.exists({ orderReference: candidate });
+    if (!exists) return candidate;
+  }
+  return `MEAL-${datePart}-${Date.now().toString().slice(-6)}`;
+};
+
 // ==========================================
 // 1. INITIAL DEPOSIT & FIRST MONTH RENT
 // ==========================================
@@ -244,11 +262,22 @@ const verifyMealPayment = async (req, res) => {
     const mealBooking = await MealBooking.findById(mealBookingId);
     if (!mealBooking) return res.status(404).json({ message: 'Meal order not found.' });
     if (mealBooking.paymentStatus === 'Paid') {
-      return res.json({ success: true, message: 'Meal payment already verified.' });
+      if (!mealBooking.orderReference) {
+        mealBooking.orderReference = await generateMealOrderReference();
+        await mealBooking.save();
+      }
+      return res.json({
+        success: true,
+        message: 'Meal payment already verified.',
+        orderReference: mealBooking.orderReference,
+      });
     }
 
     mealBooking.paymentStatus = 'Paid';
     mealBooking.paidAt = new Date();
+    if (!mealBooking.orderReference) {
+      mealBooking.orderReference = await generateMealOrderReference();
+    }
     await mealBooking.save();
 
     const student = await Student.findOne({ email: mealBooking.studentEmail });
@@ -264,7 +293,11 @@ const verifyMealPayment = async (req, res) => {
       paidAt: new Date(),
     });
 
-    res.json({ success: true, message: 'Meal payment verified and invoice created.' });
+    res.json({
+      success: true,
+      message: 'Meal payment verified and invoice created.',
+      orderReference: mealBooking.orderReference,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

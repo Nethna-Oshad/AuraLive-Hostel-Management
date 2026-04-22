@@ -42,6 +42,7 @@ import MealInsights from './pages/Meal/MealInsights';
 import Profile from './pages/Student/Profile';
 import StudentMealDashboard from './pages/Student/MealDashboard';
 import ThirdPartyMealDashboard from './pages/Student/ThirdPartyMealDashboard';
+import MealOrderQrDetails from './pages/Student/MealOrderQrDetails';
 import StudentMaintenance from './pages/Student/StudentMaintenance';
 import MyMaintenanceRequests from './pages/Student/MyMaintenanceRequests';
 
@@ -133,6 +134,7 @@ function App() {
         <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
         <Route path="/student/meals" element={<StudentLayout><StudentMealDashboard /></StudentLayout>} />
         <Route path="/student/meals/third-party" element={<StudentLayout><ThirdPartyMealDashboard /></StudentLayout>} />
+        <Route path="/meal-order/:reference" element={<StudentLayout><MealOrderQrDetails /></StudentLayout>} />
 
         <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
         <Route path="/meal-payment-success/:mealBookingId" element={<StudentLayout><MealPaymentSuccess /></StudentLayout>} />
