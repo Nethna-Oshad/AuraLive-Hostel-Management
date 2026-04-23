@@ -35,13 +35,13 @@ import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
 import MaintainerTasks from './pages/Maintainers/MaintainerTasks'; 
 import MaintainerHistory from './pages/Maintainers/MaintainerHistory'; 
 import MealDashboard from './pages/Meal/MealDashboard';
-import MealOrders from './pages/Meal/MealOrders';
 import MealMenuManagement from './pages/Meal/MealMenuManagement';
 import MealInsights from './pages/Meal/MealInsights';
 
 import Profile from './pages/Student/Profile';
 import StudentMealDashboard from './pages/Student/MealDashboard';
 import ThirdPartyMealDashboard from './pages/Student/ThirdPartyMealDashboard';
+import MealOrderQrDetails from './pages/Student/MealOrderQrDetails';
 import StudentMaintenance from './pages/Student/StudentMaintenance';
 import MyMaintenanceRequests from './pages/Student/MyMaintenanceRequests';
 
@@ -113,7 +113,7 @@ function App() {
         <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> 
         <Route path="/maintainer/completed" element={<MaintainerHistory />} /> 
         <Route path="/meal/dashboard" element={<MealDashboard />} />
-        <Route path="/meal/orders" element={<MealOrders />} />
+        <Route path="/meal/orders" element={<MealDashboard />} />
         <Route path="/meal/menu" element={<MealMenuManagement />} />
         <Route path="/meal/insights" element={<MealInsights />} />
 
@@ -133,6 +133,7 @@ function App() {
         <Route path="/profile" element={<StudentLayout><Profile /></StudentLayout>} />
         <Route path="/student/meals" element={<StudentLayout><StudentMealDashboard /></StudentLayout>} />
         <Route path="/student/meals/third-party" element={<StudentLayout><ThirdPartyMealDashboard /></StudentLayout>} />
+        <Route path="/meal-order/:reference" element={<StudentLayout><MealOrderQrDetails /></StudentLayout>} />
 
         <Route path="/payment-success/:bookingId" element={<StudentLayout><PaymentSuccess /></StudentLayout>} />
         <Route path="/meal-payment-success/:mealBookingId" element={<StudentLayout><MealPaymentSuccess /></StudentLayout>} />
