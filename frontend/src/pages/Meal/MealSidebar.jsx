@@ -1,13 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, UtensilsCrossed, ChartNoAxesCombined } from 'lucide-react';
+import { LayoutDashboard, UtensilsCrossed, ChartNoAxesCombined } from 'lucide-react';
 
 const MealSidebar = () => {
   const location = useLocation();
 
   const navItems = [
     { path: '/meal/dashboard', name: 'Dashboard', icon: LayoutDashboard },
-    { path: '/meal/orders', name: 'Orders', icon: ClipboardList },
     { path: '/meal/menu', name: 'Menu Management', icon: UtensilsCrossed },
     { path: '/meal/insights', name: 'Insights', icon: ChartNoAxesCombined },
   ];
