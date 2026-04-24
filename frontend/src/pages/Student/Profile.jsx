@@ -8,6 +8,7 @@ import {
   FileText, Wrench, Edit3, X, AlertCircle, Calendar, CheckSquare, Camera, Users, CreditCard, History, ReceiptText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import StudentPass from '../../components/StudentPass';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -433,6 +434,19 @@ const Profile = () => {
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">NIC / Passport</label><input type="text" name="nicNumber" value={formData.nicNumber} onChange={handleInputChange} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none" required /></div>
                       <button type="submit" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-white bg-[#2872A1] hover:bg-[#1f5a80]">Save Changes</button>
                     </form>
+                  )}
+
+                  {bookingData.paymentStatus === 'Paid' && (
+                    <div className="mt-10 border-t pt-8">
+                      <h2 className="text-xl font-bold mb-4 text-center">Your Hostel Boarding Pass</h2>
+                      <StudentPass
+                        studentInfo={{
+                          name: bookingData.studentName || userInfo?.name || 'Student',
+                          roomNumber: bookingData.roomNumber || 'N/A',
+                        }}
+                        paymentId={bookingData.stripeSessionId || 'PAYMENT-VERIFIED'}
+                      />
+                    </div>
                   )}
                 </>
               ) : (
