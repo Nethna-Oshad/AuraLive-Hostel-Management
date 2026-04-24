@@ -4,7 +4,11 @@ const {
   getKitchenSlots,
   createKitchenBooking,
   createExternalOrder,
+  createExternalCartOrder,
   getStudentMealBookings,
+  getMealOrderByReference,
+  deleteStudentCompletedExternalOrder,
+  deleteStudentCompletedExternalOrdersBulk,
   cancelMealBooking,
   rescheduleMealBooking,
   getAdminSlots,
@@ -34,7 +38,11 @@ const {
 router.get('/slots', getKitchenSlots);
 router.post('/book-kitchen', createKitchenBooking);
 router.post('/order-external', createExternalOrder);
+router.post('/order-external-cart', createExternalCartOrder);
 router.get('/student/:email', getStudentMealBookings);
+router.get('/orders/reference/:reference', getMealOrderByReference);
+router.delete('/student/orders/:id', deleteStudentCompletedExternalOrder);
+router.delete('/student/orders', deleteStudentCompletedExternalOrdersBulk);
 router.patch('/:id/cancel', cancelMealBooking);
 router.patch('/:id/reschedule', rescheduleMealBooking);
 router.get('/admin/slots', getAdminSlots);

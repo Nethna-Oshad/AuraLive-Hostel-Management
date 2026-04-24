@@ -24,19 +24,6 @@ const emptySupplierForm = {
   shopTagline: '',
 };
 
-const emptyMenuForm = {
-  supplierName: '',
-  supplierEmail: '',
-  itemName: '',
-  category: 'Main',
-  price: '',
-  prepTimeMinutes: 30,
-  description: '',
-  isAvailable: true,
-};
-
-const DELIVERY_OPTIONS = ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'];
-
 const ManageThirdPartyMeals = () => {
   const [tab, setTab] = useState('suppliers');
   const [suppliers, setSuppliers] = useState([]);
@@ -47,9 +34,6 @@ const ManageThirdPartyMeals = () => {
   const [menuItems, setMenuItems] = useState([]);
   /** Selected active shop when managing menu items (card click). */
   const [menuShopFocus, setMenuShopFocus] = useState(null);
-  const [menuForm, setMenuForm] = useState(emptyMenuForm);
-  const [editingMenuId, setEditingMenuId] = useState('');
-  const [showMenuModal, setShowMenuModal] = useState(false);
 
   const [orders, setOrders] = useState([]);
   const [orderFilters, setOrderFilters] = useState({ date: '' });
@@ -250,81 +234,26 @@ const ManageThirdPartyMeals = () => {
     }
   };
 
-  const openCreateMenu = () => {
-    if (!menuShopFocus) {
-      toast.error('Select a shop card first.');
-      return;
-    }
-    setEditingMenuId('');
-    setMenuForm({
-      ...emptyMenuForm,
-      supplierName: menuShopFocus.name,
-      supplierEmail: menuShopFocus.email,
-    });
-    setShowMenuModal(true);
-  };
-
-  const openEditMenu = (item) => {
-    setEditingMenuId(item._id);
-    setMenuForm({
-      supplierName: item.supplierName,
-      supplierEmail: item.supplierEmail,
-      itemName: item.itemName,
-      category: item.category || 'Main',
-      price: String(item.price),
-      prepTimeMinutes: item.prepTimeMinutes || 30,
-      description: item.description || '',
-      isAvailable: item.isAvailable !== false,
-    });
-    setShowMenuModal(true);
-  };
-
-  const saveMenuItem = async (e) => {
-    e.preventDefault();
+  const toggleMenuItemAvailability = async (item) => {
     try {
-      const body = {
-        supplierName: menuForm.supplierName,
-        supplierEmail: menuForm.supplierEmail,
-        itemName: menuForm.itemName,
-        category: menuForm.category,
-        price: Number(menuForm.price),
-        prepTimeMinutes: Number(menuForm.prepTimeMinutes) || 30,
-        description: menuForm.description,
-        isAvailable: menuForm.isAvailable,
-      };
-      if (editingMenuId) {
-        const res = await fetch(`${API}/meals/supplier/menu/${editingMenuId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          toast.error(data.message || 'Could not update menu item.');
-          return;
-        }
-        toast.success('Menu item updated.');
-      } else {
-        if (!menuForm.supplierEmail) {
-          toast.error('Select a supplier.');
-          return;
-        }
-        const res = await fetch(`${API}/meals/supplier/menu`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          toast.error(data.message || 'Could not create menu item.');
-          return;
-        }
-        toast.success('Menu item created.');
+      const nextAvailability = item.isAvailable === false;
+      const res = await fetch(`${API}/meals/supplier/menu/${item._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplierEmail: item.supplierEmail,
+          isAvailable: nextAvailability,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || 'Could not update menu status.');
+        return;
       }
-      setShowMenuModal(false);
+      toast.success(`Menu item ${nextAvailability ? 'activated' : 'suspended'}.`);
       if (menuShopFocus) fetchMenuItemsForShop(menuShopFocus);
     } catch {
-      toast.error('Could not save menu item.');
+      toast.error('Could not update menu status.');
     }
   };
 
@@ -336,20 +265,6 @@ const ManageThirdPartyMeals = () => {
       if (menuShopFocus) fetchMenuItemsForShop(menuShopFocus);
     } catch {
       toast.error('Delete failed.');
-    }
-  };
-
-  const updateOrderDelivery = async (orderId, deliveryStatus) => {
-    try {
-      await fetch(`${API}/meals/admin/orders/${orderId}/delivery-status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deliveryStatus }),
-      });
-      toast.success('Delivery status updated.');
-      fetchOrders();
-    } catch {
-      toast.error('Update failed.');
     }
   };
 
@@ -569,7 +484,7 @@ const ManageThirdPartyMeals = () => {
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800">Menu items</h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  Only <span className="font-semibold text-gray-700">active</span> shops appear below. Open a shop to view, edit, or delete its dishes.
+                  Only <span className="font-semibold text-gray-700">active</span> shops appear below. Open a shop to suspend, activate, or delete its dishes.
                 </p>
               </div>
 
@@ -614,13 +529,6 @@ const ManageThirdPartyMeals = () => {
                       <ArrowLeft className="h-4 w-4" />
                       Back to shops
                     </button>
-                    <button
-                      type="button"
-                      onClick={openCreateMenu}
-                      className="px-4 py-2 rounded-xl bg-[#2872A1] text-white font-bold text-sm hover:bg-[#1f5a80] sm:ml-auto"
-                    >
-                      Add menu item
-                    </button>
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
@@ -656,10 +564,14 @@ const ManageThirdPartyMeals = () => {
                         <div className="flex gap-2 mt-auto pt-2 border-t border-gray-50">
                           <button
                             type="button"
-                            onClick={() => openEditMenu(item)}
-                            className="flex-1 py-2 rounded-xl text-sm font-bold bg-blue-50 text-blue-700 hover:bg-blue-100"
+                            onClick={() => toggleMenuItemAvailability(item)}
+                            className={`flex-1 py-2 rounded-xl text-sm font-bold text-white ${
+                              item.isAvailable === false
+                                ? 'bg-emerald-600 hover:bg-emerald-700'
+                                : 'bg-amber-600 hover:bg-amber-700'
+                            }`}
                           >
-                            Edit
+                            {item.isAvailable === false ? 'Activate' : 'Suspend'}
                           </button>
                           <button
                             type="button"
@@ -674,7 +586,7 @@ const ManageThirdPartyMeals = () => {
                   </div>
                   {menuItems.length === 0 && (
                     <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-gray-500 text-sm">
-                      No menu items for this shop yet. Use &quot;Add menu item&quot; to create dishes.
+                      No menu items for this shop yet.
                     </div>
                   )}
                 </div>
@@ -763,17 +675,9 @@ const ManageThirdPartyMeals = () => {
                             <span className="text-xs font-bold">{order.paymentStatus}</span>
                           </td>
                           <td className="p-4">
-                            <select
-                              value={order.deliveryStatus || 'Pending'}
-                              onChange={(e) => updateOrderDelivery(order._id, e.target.value)}
-                              className="p-2 rounded-lg border border-gray-200 text-xs font-semibold bg-white max-w-[160px]"
-                            >
-                              {DELIVERY_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
+                            <span className="inline-flex p-2 rounded-lg border border-gray-200 text-xs font-semibold bg-gray-50 text-gray-700 max-w-[160px]">
+                              {order.deliveryStatus || 'Pending'}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -937,127 +841,6 @@ const ManageThirdPartyMeals = () => {
             </div>
           )}
 
-          {showMenuModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-              <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
-                <h4 className="text-lg font-bold text-gray-900 mb-4">{editingMenuId ? 'Edit menu item' : 'New menu item'}</h4>
-                <form onSubmit={saveMenuItem} className="space-y-3">
-                  {!editingMenuId && menuShopFocus && (
-                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 text-sm">
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Shop</p>
-                      <p className="font-bold text-gray-900">{menuShopFocus.name}</p>
-                      <p className="text-xs text-gray-500">{menuShopFocus.email}</p>
-                    </div>
-                  )}
-                  {!editingMenuId && !menuShopFocus && (
-                    <div>
-                      <label className="text-xs font-bold text-gray-500">Supplier (active only)</label>
-                      <select
-                        className="mt-1 w-full p-3 rounded-xl border border-gray-200"
-                        required
-                        value={menuForm.supplierEmail}
-                        onChange={(e) => {
-                          const sel = activeSuppliers.find((s) => s.email === e.target.value);
-                          setMenuForm((p) => ({
-                            ...p,
-                            supplierEmail: e.target.value,
-                            supplierName: sel ? sel.name : '',
-                          }));
-                        }}
-                      >
-                        <option value="">Select supplier</option>
-                        {activeSuppliers.map((s) => (
-                          <option key={s._id} value={s.email}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {editingMenuId && (
-                    <div className="text-sm text-gray-600">
-                      <span className="font-bold">{menuForm.supplierName}</span>
-                      <span className="text-gray-400"> · </span>
-                      {menuForm.supplierEmail}
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs font-bold text-gray-500">Item name</label>
-                    <input
-                      className="mt-1 w-full p-3 rounded-xl border border-gray-200"
-                      value={menuForm.itemName}
-                      onChange={(e) => setMenuForm((p) => ({ ...p, itemName: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-bold text-gray-500">Category</label>
-                      <input
-                        className="mt-1 w-full p-3 rounded-xl border border-gray-200"
-                        value={menuForm.category}
-                        onChange={(e) => setMenuForm((p) => ({ ...p, category: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-500">Price</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="mt-1 w-full p-3 rounded-xl border border-gray-200"
-                        value={menuForm.price}
-                        onChange={(e) => setMenuForm((p) => ({ ...p, price: e.target.value }))}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-500">Prep time (minutes)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      className="mt-1 w-full p-3 rounded-xl border border-gray-200"
-                      value={menuForm.prepTimeMinutes}
-                      onChange={(e) => setMenuForm((p) => ({ ...p, prepTimeMinutes: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-500">Description</label>
-                    <textarea
-                      className="mt-1 w-full p-3 rounded-xl border border-gray-200 text-sm"
-                      rows={2}
-                      value={menuForm.description}
-                      onChange={(e) => setMenuForm((p) => ({ ...p, description: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="avail"
-                      checked={menuForm.isAvailable}
-                      onChange={(e) => setMenuForm((p) => ({ ...p, isAvailable: e.target.checked }))}
-                    />
-                    <label htmlFor="avail" className="text-sm font-medium text-gray-700">
-                      Available
-                    </label>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button type="submit" className="flex-1 py-3 rounded-xl bg-[#2872A1] text-white font-bold">
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowMenuModal(false)}
-                      className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-700"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
         </main>
       </div>
     </div>

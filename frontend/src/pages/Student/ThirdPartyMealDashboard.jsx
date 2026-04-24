@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck, ChevronDown, ChevronUp, X } from 'lucide-react';
+import QRCode from 'qrcode';
+import { Store, CalendarDays, CheckCircle2, UtensilsCrossed, Lock, Package2, Truck, ChevronDown, ChevronUp, X, Trash2, ShoppingCart, Plus, Minus, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -28,10 +29,13 @@ const ThirdPartyMealDashboard = () => {
   const [allFull, setAllFull] = useState(false);
   const [studentBookings, setStudentBookings] = useState([]);
   const [showAllBookings, setShowAllBookings] = useState(false); // State for toggling visible bookings
+  const [activeOrderTab, setActiveOrderTab] = useState('ongoing');
   const [loading, setLoading] = useState(true);
   const [selectedShop, setSelectedShop] = useState(null);
   const [shopMenuItems, setShopMenuItems] = useState([]);
   const [menuLoading, setMenuLoading] = useState(false);
+  const [cartItems, setCartItems] = useState([]);
+  const [showCart, setShowCart] = useState(false);
 
   useEffect(() => {
     if (!userInfo || userInfo.role !== 'Student') {
@@ -84,6 +88,14 @@ const ThirdPartyMealDashboard = () => {
     loadData();
   }, [selectedDate, userInfo]);
 
+  useEffect(() => {
+    if (!userInfo || userInfo.role !== 'Student') return;
+    const interval = setInterval(() => {
+      fetchMyMealBookings();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [userInfo]);
+
   const openShopMenu = async (shop) => {
     setSelectedShop(shop);
     setShopMenuItems([]);
@@ -105,24 +117,93 @@ const ThirdPartyMealDashboard = () => {
     setShopMenuItems([]);
   };
 
-  const handleMenuOrder = async (shopName, menuItem) => {
+  const addToCart = (shopName, menuItem) => {
     if (!selectedDate) {
       toast.error('Please select a date first.');
       return;
     }
+    if (cartItems.length > 0 && cartItems[0].shopName !== shopName) {
+      toast.error(`Cart already contains items from ${cartItems[0].shopName}. Clear cart to add from another store.`);
+      return;
+    }
+    setCartItems((prevItems) => {
+      const existing = prevItems.find((item) => item.menuItemId === menuItem._id && item.shopName === shopName);
+      if (existing) {
+        return prevItems.map((item) =>
+          item.menuItemId === menuItem._id && item.shopName === shopName
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [
+        ...prevItems,
+        {
+          shopName,
+          menuItemId: menuItem._id,
+          itemName: menuItem.itemName,
+          unitPrice: Number(menuItem.price) || 0,
+          quantity: 1,
+        },
+      ];
+    });
+    toast.success(`${menuItem.itemName} added to cart.`);
+  };
+
+  const increaseCartItem = (menuItemId) => {
+    setCartItems((prevItems) =>
+      prevItems.map((item) =>
+        item.menuItemId === menuItemId ? { ...item, quantity: item.quantity + 1 } : item
+      )
+    );
+  };
+
+  const decreaseCartItem = (menuItemId) => {
+    setCartItems((prevItems) =>
+      prevItems
+        .map((item) =>
+          item.menuItemId === menuItemId ? { ...item, quantity: Math.max(item.quantity - 1, 0) } : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  };
+
+  const removeCartItem = (menuItemId) => {
+    setCartItems((prevItems) => prevItems.filter((item) => item.menuItemId !== menuItemId));
+  };
+
+  const clearCart = () => {
+    setCartItems([]);
+  };
+
+  const handlePlaceCartOrder = async () => {
+    if (!selectedDate) {
+      toast.error('Please select a date first.');
+      return;
+    }
+    if (cartItems.length === 0) {
+      toast.error('Your cart is empty.');
+      return;
+    }
+
     try {
-      await axios.post('http://localhost:5000/api/meals/order-external', {
+      await axios.post('http://localhost:5000/api/meals/order-external-cart', {
         studentEmail: userInfo.email,
         studentName: userInfo.name,
         bookingDate: selectedDate,
-        shopName,
-        menuItem,
+        items: cartItems.map((item) => ({
+          shopName: item.shopName,
+          menuItemId: item.menuItemId,
+          itemName: item.itemName,
+          quantity: item.quantity,
+        })),
       });
-      toast.success('External meal order request created.');
+      toast.success('Cart order created successfully.');
+      setCartItems([]);
+      setShowCart(false);
       closeShopMenu();
       await fetchMyMealBookings();
     } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to create order.');
+      toast.error(error?.response?.data?.message || 'Failed to create cart order.');
     }
   };
 
@@ -142,6 +223,40 @@ const ThirdPartyMealDashboard = () => {
       await Promise.all([fetchShops(), fetchMyMealBookings()]);
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to cancel order.');
+    }
+  };
+
+  const handleDeleteCompletedOrder = async (bookingId) => {
+    const confirmed = window.confirm('Delete this completed order from your history? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`http://localhost:5000/api/meals/student/orders/${bookingId}`, {
+        params: { studentEmail: userInfo.email },
+      });
+      toast.success('Completed order deleted from history.');
+      await fetchMyMealBookings();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to delete completed order.');
+    }
+  };
+
+  const handleDeleteAllCompletedOrders = async () => {
+    const confirmed = window.confirm(
+      `Delete ALL completed/cancelled external orders from your history? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await axios.delete(`http://localhost:5000/api/meals/student/orders`, {
+        params: { studentEmail: userInfo.email },
+      });
+      const deletedCount = response?.data?.deletedCount ?? 0;
+      toast.success(`Deleted ${deletedCount} completed order(s).`);
+      setShowAllBookings(false);
+      await fetchMyMealBookings();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to delete completed orders.');
     }
   };
 
@@ -184,40 +299,13 @@ const ThirdPartyMealDashboard = () => {
     }
   };
 
-  const DELIVERY_STEP_MS = 10000;
-
-  const DeliveryAnimatedTracker = ({ bookingId, shouldStart }) => {
-    const [animatedIdx, setAnimatedIdx] = useState(-1);
-    const storageKey = `mealDeliveryTrackStart:${bookingId}`;
-
-    const computeIdxFromElapsed = (startTs) => {
-      if (!startTs) return 0;
-      const elapsedMs = Date.now() - startTs;
-      const raw = Math.floor(elapsedMs / DELIVERY_STEP_MS);
-      return Math.min(Math.max(raw, 0), deliverySteps.length - 1);
+  const DeliveryStatusTracker = ({ currentStatus, shouldShow }) => {
+    const getCurrentIndex = () => {
+      const idx = deliverySteps.findIndex((step) => step.status === currentStatus);
+      return idx >= 0 ? idx : 0;
     };
-
-    useEffect(() => {
-      if (!shouldStart) {
-        setAnimatedIdx(-1);
-        return;
-      }
-      let startTs = Number(localStorage.getItem(storageKey));
-      if (!startTs) {
-        startTs = Date.now();
-        localStorage.setItem(storageKey, String(startTs));
-      }
-
-      const tick = () => {
-        setAnimatedIdx(computeIdxFromElapsed(startTs));
-      };
-
-      tick();
-      const interval = setInterval(tick, 1000);
-      return () => clearInterval(interval);
-    }, [storageKey, shouldStart]);
-
-    const progressPercent = animatedIdx < 0 ? 0 : ((animatedIdx + 1) / deliverySteps.length) * 100;
+    const activeIndex = getCurrentIndex();
+    const progressPercent = shouldShow ? ((activeIndex + 1) / deliverySteps.length) * 100 : 0;
 
     return (
       <div>
@@ -229,15 +317,14 @@ const ThirdPartyMealDashboard = () => {
           />
 
           {deliverySteps.map((step, stepIdx) => {
-            const isDoneOrCurrent = animatedIdx >= stepIdx;
+            const isDoneOrCurrent = shouldShow && activeIndex >= stepIdx;
             return (
               <div key={step.status} className="flex flex-col items-center w-1/4 relative z-10">
                 <div
-                  className={`w-12 h-12 rounded-full border flex items-center justify-center ${
-                    isDoneOrCurrent
+                  className={`w-12 h-12 rounded-full border flex items-center justify-center ${isDoneOrCurrent
                       ? 'bg-[#CFE9FF] border-[#9FD3FF] text-[#2872A1]'
                       : 'bg-white border-[#CFE9FF] text-gray-400'
-                  }`}
+                    }`}
                 >
                   <StepIcon iconKey={step.iconKey} />
                 </div>
@@ -248,13 +335,12 @@ const ThirdPartyMealDashboard = () => {
 
         <div className="flex items-start justify-between mt-2">
           {deliverySteps.map((step, stepIdx) => {
-            const isDoneOrCurrent = animatedIdx >= stepIdx;
+            const isDoneOrCurrent = shouldShow && activeIndex >= stepIdx;
             return (
               <p
                 key={step.status}
-                className={`w-1/4 text-[11px] font-semibold leading-tight text-center ${
-                  isDoneOrCurrent ? 'text-[#1f5a80]' : 'text-gray-400'
-                }`}
+                className={`w-1/4 text-[11px] font-semibold leading-tight text-center ${isDoneOrCurrent ? 'text-[#1f5a80]' : 'text-gray-400'
+                  }`}
               >
                 {step.label}
               </p>
@@ -265,7 +351,81 @@ const ThirdPartyMealDashboard = () => {
     );
   };
 
-  const displayedBookings = showAllBookings ? studentBookings : studentBookings.slice(0, 3);
+  const isCompletedOrder = (booking) =>
+    booking.status === 'Cancelled' ||
+    booking.status === 'Completed' ||
+    booking.deliveryStatus === 'Delivered';
+
+  const ongoingBookings = studentBookings.filter((booking) => !isCompletedOrder(booking));
+  const completedBookings = studentBookings.filter((booking) => isCompletedOrder(booking));
+
+  const displayedOngoingBookings = showAllBookings ? ongoingBookings : ongoingBookings.slice(0, 3);
+  const displayedCompletedBookings = showAllBookings ? completedBookings : completedBookings.slice(0, 3);
+  const isOngoingTabActive = activeOrderTab === 'ongoing';
+  const activeTabBookingsCount = isOngoingTabActive ? ongoingBookings.length : completedBookings.length;
+  const cartTotal = cartItems.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * item.quantity, 0);
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  const buildQrTargetUrl = (booking) => {
+    const reference = booking?.orderReference ? String(booking.orderReference).trim() : '';
+    if (!reference) return '';
+    return `${window.location.origin}/meal-order/${encodeURIComponent(reference)}`;
+  };
+
+  const buildQrTextPayload = (booking) => {
+    const qrTargetUrl = buildQrTargetUrl(booking);
+    const lines = [
+      qrTargetUrl,
+      `Ref No: ${booking?.orderReference || 'N/A'}`,
+      `Student: ${booking?.studentName || 'N/A'}`,
+      `Shop: ${booking?.externalShopName || 'N/A'}`,
+      `Date: ${booking?.bookingDate || 'N/A'}`,
+      `Slot: ${booking?.slotLabel || 'N/A'}`,
+      'Items:',
+    ];
+
+    if (Array.isArray(booking?.externalItems) && booking.externalItems.length > 0) {
+      booking.externalItems.forEach((item, index) => {
+        const name = item?.itemName || 'Item';
+        const qty = Number(item?.quantity) || 0;
+        const lineTotal = Number(item?.lineTotal) || 0;
+        lines.push(`${index + 1}. ${name} | Qty: ${qty} | Rs. ${lineTotal}`);
+      });
+    } else {
+      const menuItem = booking?.externalMenuItem || 'N/A';
+      const amount = Number(booking?.externalAmount) || 0;
+      lines.push(`1. ${menuItem} | Qty: 1 | Rs. ${amount}`);
+    }
+
+    lines.push(`Total: Rs. ${Number(booking?.externalAmount) || 0}`);
+    lines.push(`Payment: ${booking?.paymentStatus || 'N/A'}`);
+    lines.push(`Delivery: ${booking?.deliveryStatus || 'N/A'}`);
+
+    return lines.join('\n');
+  };
+
+  const handleDownloadOrderQr = async (booking) => {
+    try {
+      if (!booking?.orderReference) {
+        toast.error('Reference number is not ready yet for this order.');
+        return;
+      }
+      const qrPayload = buildQrTextPayload(booking);
+      const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+        width: 720,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+      });
+      const link = document.createElement('a');
+      link.href = qrDataUrl;
+      link.download = `${booking.orderReference}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      toast.error('Failed to download QR code.');
+    }
+  };
 
   if (loading) {
     return (
@@ -364,9 +524,9 @@ const ThirdPartyMealDashboard = () => {
             <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <CheckCircle2 className="w-6 h-6 text-emerald-600" /> My External Orders
             </h2>
-            {studentBookings.length > 3 && (
+            {activeTabBookingsCount > 3 && (
               <span className="text-sm font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                Total: {studentBookings.length}
+                Total: {activeTabBookingsCount}
               </span>
             )}
           </div>
@@ -377,72 +537,294 @@ const ThirdPartyMealDashboard = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {displayedBookings.map((booking) => (
-                <div
-                  key={booking._id}
-                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-gray-100 rounded-xl p-4 bg-gradient-to-r from-white to-slate-50 hover:shadow-sm transition-all"
+              <div className="inline-flex items-center gap-2 rounded-xl bg-gray-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveOrderTab('ongoing');
+                    setShowAllBookings(false);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${isOngoingTabActive
+                      ? 'bg-white text-[#1f5a80] shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                    }`}
                 >
-                  <div className="w-full md:w-auto flex-1">
-                    <p className="font-bold text-gray-900">External Meal Order</p>
-                    <p className="text-sm text-gray-600">
-                      {booking.bookingDate} | {booking.slotLabel}
-                    </p>
-                    <p className="text-sm text-orange-600 mt-1">
-                      {booking.externalShopName} - {booking.externalMenuItem} (Rs. {booking.externalAmount || 0})
-                    </p>
+                  Ongoing Orders ({ongoingBookings.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveOrderTab('completed');
+                    setShowAllBookings(false);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${!isOngoingTabActive
+                      ? 'bg-white text-emerald-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                >
+                  Completed Orders ({completedBookings.length})
+                </button>
+              </div>
 
-                    {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
-                      <p className="text-sm text-[#1f5a80] mt-1">
-                        Complete payment to confirm your order. Cancellation will be disabled after payment.
-                      </p>
-                    )}
-
-                    {booking.status !== 'Cancelled' && (
-                      <div className="mt-4 max-w-lg">
-                        <DeliveryAnimatedTracker bookingId={booking._id} shouldStart={booking.paymentStatus === 'Paid'} />
+              {isOngoingTabActive ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#1f5a80]">Ongoing Orders</h3>
+                  <div className="mt-3 space-y-3">
+                    {displayedOngoingBookings.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-blue-200 bg-white p-4 text-sm text-gray-500">
+                        No ongoing external orders.
                       </div>
-                    )}
-                  </div>
+                    ) : (
+                      displayedOngoingBookings.map((booking) => (
+                        <div
+                          key={booking._id}
+                          className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm hover:shadow-md transition-all"
+                        >
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-gray-900">External Meal Order</p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {booking.bookingDate} | {booking.slotLabel}
+                              </p>
+                              <p className="text-sm font-semibold text-[#1f5a80] mt-1">
+                                {booking.externalShopName}
+                              </p>
+                            </div>
 
-                  <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
-                    <span
-                      className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
-                        booking.status === 'Cancelled'
-                          ? 'text-red-600 bg-red-50 border-red-100'
-                          : 'text-emerald-600 bg-emerald-50 border-emerald-100'
-                      }`}
-                    >
-                      {booking.status}
-                    </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.status === 'Cancelled'
+                                    ? 'text-red-600 bg-red-50 border-red-100'
+                                    : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                                  }`}
+                              >
+                                {booking.status}
+                              </span>
+                              <span
+                                className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.paymentStatus === 'Paid'
+                                    ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                                    : 'text-amber-700 bg-amber-50 border-amber-100'
+                                  }`}
+                              >
+                                Payment: {booking.paymentStatus}
+                              </span>
+                              {booking.paymentStatus === 'Paid' && booking.status !== 'Cancelled' && (
+                                <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-100">
+                                  Supplier: {booking.deliveryStatus || 'Pending'}
+                                </span>
+                              )}
+                              {booking.paymentStatus === 'Paid' && booking.orderReference && (
+                                <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-indigo-700 bg-indigo-50 border-indigo-100">
+                                  Ref: {booking.orderReference}
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                    {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
-                      <button
-                        onClick={() => handlePayExternalOrder(booking._id)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#2872A1] text-white hover:bg-[#1f5a80] transition-colors"
-                      >
-                        Pay Now
-                      </button>
-                    )}
+                          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                            {Array.isArray(booking.externalItems) && booking.externalItems.length > 0 ? (
+                              <div className="space-y-2">
+                                {booking.externalItems.map((line, idx) => (
+                                  <div key={`${booking._id}-ongoing-${idx}`} className="flex items-center justify-between text-sm">
+                                    <p className="font-medium text-gray-800">
+                                      {line.itemName} <span className="text-gray-500 font-normal">x{line.quantity}</span>
+                                    </p>
+                                    <p className="font-semibold text-gray-700">Rs. {line.lineTotal}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-sm">
+                                <p className="font-medium text-gray-800">{booking.externalMenuItem}</p>
+                                <p className="font-semibold text-gray-700">Rs. {booking.externalAmount || 0}</p>
+                              </div>
+                            )}
+                            <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
+                              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total</p>
+                              <p className="text-sm font-extrabold text-slate-900">Rs. {booking.externalAmount || 0}</p>
+                            </div>
+                          </div>
 
-                    {booking.status !== 'Cancelled' && (
-                      <button
-                        onClick={() => handleCancelBooking(booking._id)}
-                        disabled={booking.paymentStatus === 'Paid'}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
-                          booking.paymentStatus === 'Paid'
-                            ? 'bg-red-50 text-red-300 border border-red-100 cursor-not-allowed'
-                            : 'bg-red-100 text-red-700 hover:bg-red-200'
-                        }`}
-                      >
-                        Cancel
-                      </button>
+                          {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
+                            <p className="mt-3 text-sm text-[#1f5a80]">
+                              Complete payment to confirm your order. Cancellation will be disabled after payment.
+                            </p>
+                          )}
+
+                          {booking.status !== 'Cancelled' && (
+                            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3">
+                              <DeliveryStatusTracker
+                                currentStatus={booking.deliveryStatus || 'Pending'}
+                                shouldShow={booking.paymentStatus === 'Paid'}
+                              />
+                            </div>
+                          )}
+
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                            {booking.paymentStatus !== 'Paid' && booking.status !== 'Cancelled' && (
+                              <button
+                                onClick={() => handlePayExternalOrder(booking._id)}
+                                className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#2872A1] text-white hover:bg-[#1f5a80] transition-colors"
+                              >
+                                Pay Now
+                              </button>
+                            )}
+
+                            {booking.status !== 'Cancelled' && (
+                              <button
+                                onClick={() => handleCancelBooking(booking._id)}
+                                disabled={booking.paymentStatus === 'Paid'}
+                                className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${booking.paymentStatus === 'Paid'
+                                    ? 'bg-red-50 text-red-300 border border-red-100 cursor-not-allowed'
+                                    : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                  }`}
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>
-              ))}
+              ) : (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-emerald-700">Completed Orders</h3>
+                    {completedBookings.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteAllCompletedOrders}
+                        className="inline-flex items-center gap-2 text-xs font-extrabold px-3 py-2 rounded-full border border-red-100 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                        title="Delete all completed orders"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete All
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {displayedCompletedBookings.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-emerald-200 bg-white p-4 text-sm text-gray-500">
+                        No completed external orders.
+                      </div>
+                    ) : (
+                      displayedCompletedBookings.map((booking) => (
+                        <div
+                          key={booking._id}
+                          className="border border-gray-100 rounded-2xl p-5 bg-white shadow-sm hover:shadow-md transition-all"
+                        >
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-gray-900">External Meal Order</p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {booking.bookingDate} | {booking.slotLabel}
+                              </p>
+                              <p className="text-sm font-semibold text-[#1f5a80] mt-1">
+                                {booking.externalShopName}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.status === 'Cancelled'
+                                    ? 'text-red-600 bg-red-50 border-red-100'
+                                    : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                                  }`}
+                              >
+                                {booking.status}
+                              </span>
+                              <span
+                                className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border ${booking.paymentStatus === 'Paid'
+                                    ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                                    : 'text-amber-700 bg-amber-50 border-amber-100'
+                                  }`}
+                              >
+                                Payment: {booking.paymentStatus}
+                              </span>
+                              {booking.paymentStatus === 'Paid' && booking.status !== 'Cancelled' && (
+                                <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-100">
+                                  Supplier: {booking.deliveryStatus || 'Pending'}
+                                </span>
+                              )}
+                              {booking.paymentStatus === 'Paid' && booking.orderReference && (
+                                <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border text-indigo-700 bg-indigo-50 border-indigo-100">
+                                  Ref: {booking.orderReference}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleDeleteCompletedOrder(booking._id)}
+                                className="p-2 rounded-full border border-red-100 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                aria-label="Delete completed order"
+                                title="Delete completed order"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                            {Array.isArray(booking.externalItems) && booking.externalItems.length > 0 ? (
+                              <div className="space-y-2">
+                                {booking.externalItems.map((line, idx) => (
+                                  <div key={`${booking._id}-completed-${idx}`} className="flex items-center justify-between text-sm">
+                                    <p className="font-medium text-gray-800">
+                                      {line.itemName} <span className="text-gray-500 font-normal">x{line.quantity}</span>
+                                    </p>
+                                    <p className="font-semibold text-gray-700">Rs. {line.lineTotal}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-sm">
+                                <p className="font-medium text-gray-800">{booking.externalMenuItem}</p>
+                                <p className="font-semibold text-gray-700">Rs. {booking.externalAmount || 0}</p>
+                              </div>
+                            )}
+                            <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
+                              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total</p>
+                              <p className="text-sm font-extrabold text-slate-900">Rs. {booking.externalAmount || 0}</p>
+                            </div>
+                          </div>
+
+                          {booking.status !== 'Cancelled' && (
+                            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3">
+                              <DeliveryStatusTracker
+                                currentStatus={booking.deliveryStatus || 'Pending'}
+                                shouldShow={booking.paymentStatus === 'Paid'}
+                              />
+                            </div>
+                          )}
+                          {booking.status !== 'Cancelled' &&
+                            booking.paymentStatus === 'Paid' &&
+                            booking.deliveryStatus === 'Delivered' && (
+                              <div className="w-full mt-4 rounded-xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-bold text-indigo-900">Collection QR Ready</p>
+                                  <p className="text-xs text-indigo-700 mt-1">
+                                    Show this QR at pickup. Ref: {booking.orderReference || 'N/A'}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadOrderQr(booking)}
+                                  className="inline-flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-full border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download QR
+                                </button>
+                              </div>
+                            )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* View All / Show Less Toggle Button */}
-              {studentBookings.length > 3 && (
+              {activeTabBookingsCount > 3 && (
                 <div className="pt-4 flex justify-center">
                   <button
                     onClick={() => setShowAllBookings(!showAllBookings)}
@@ -454,7 +836,7 @@ const ThirdPartyMealDashboard = () => {
                       </>
                     ) : (
                       <>
-                        View All {studentBookings.length} Orders <ChevronDown className="w-4 h-4" />
+                        View All {activeTabBookingsCount} Orders <ChevronDown className="w-4 h-4" />
                       </>
                     )}
                   </button>
@@ -509,10 +891,10 @@ const ThirdPartyMealDashboard = () => {
                           <p className="font-bold text-[#2872A1]">Rs. {item.price || selectedShop.basePrice}</p>
                           <button
                             type="button"
-                            onClick={() => handleMenuOrder(selectedShop.name, item.itemName)}
+                            onClick={() => addToCart(selectedShop.name, item)}
                             className="mt-2 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#2872A1] text-white hover:bg-[#1f5a80]"
                           >
-                            Order Item
+                            Add to Cart
                           </button>
                         </div>
                       </div>
@@ -520,6 +902,87 @@ const ThirdPartyMealDashboard = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cartItems.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowCart(true)}
+          className="fixed bottom-6 left-6 z-40 bg-[#2872A1] text-white rounded-full px-5 py-3 shadow-lg hover:bg-[#1f5a80] flex items-center gap-2"
+        >
+          <ShoppingCart className="w-5 h-5" />
+          Cart ({cartCount}) - Rs. {cartTotal}
+        </button>
+      )}
+
+      {showCart && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-gray-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5 text-[#2872A1]" />
+                My Cart
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCart(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                aria-label="Close cart"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+              {cartItems.map((item) => (
+                <div key={`${item.shopName}-${item.menuItemId}`} className="rounded-xl border border-gray-100 p-4 bg-gray-50">
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <p className="font-bold text-gray-900">{item.itemName}</p>
+                      <p className="text-xs text-gray-500">{item.shopName}</p>
+                      <p className="text-sm text-[#2872A1] mt-1">Rs. {item.unitPrice} each</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">Rs. {item.unitPrice * item.quantity}</p>
+                      <div className="mt-2 inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+                        <button type="button" onClick={() => decreaseCartItem(item.menuItemId)} className="p-1 hover:bg-gray-100 rounded">
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="px-2 text-sm font-bold">{item.quantity}</span>
+                        <button type="button" onClick={() => increaseCartItem(item.menuItemId)} className="p-1 hover:bg-gray-100 rounded">
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeCartItem(item.menuItemId)}
+                        className="mt-2 text-xs font-bold text-red-600 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-lg font-extrabold text-gray-900">Total: Rs. {cartTotal}</p>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={clearCart} className="px-4 py-2 text-sm font-bold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">
+                  Clear Cart
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePlaceCartOrder}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-[#2872A1] text-white hover:bg-[#1f5a80]"
+                >
+                  Checkout
+                </button>
+              </div>
             </div>
           </div>
         </div>

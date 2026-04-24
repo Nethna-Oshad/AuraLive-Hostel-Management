@@ -46,7 +46,6 @@ const MealMenuManagement = () => {
     e.preventDefault();
     try {
       const payload = {
-        supplierName: userInfo.name,
         supplierEmail: userInfo.email,
         itemName: formData.itemName,
         category: formData.category,
@@ -93,7 +92,10 @@ const MealMenuManagement = () => {
 
   const handleDelete = async (id) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/meals/supplier/menu/${id}`, { method: 'DELETE' });
+      const response = await fetch(
+        `http://localhost:5000/api/meals/supplier/menu/${id}?supplierEmail=${encodeURIComponent(userInfo?.email || '')}`,
+        { method: 'DELETE' }
+      );
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.message || 'Failed to delete menu item.');
