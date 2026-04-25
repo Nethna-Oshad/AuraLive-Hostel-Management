@@ -61,7 +61,7 @@ import TermsOfService from './Company/TermsOfService';
 import HelpCenter from './Company/HelpCenter'; 
 import Services from './Company/Services';
 
-import MaintainerProfile from './pages/Maintainers/MaintainerProfile';
+
 
 const StudentLayout = ({ children }) => {
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
