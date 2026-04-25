@@ -20,7 +20,7 @@ const LaundryRegistration = () => {
     }
 
     setLoading(true);
-    try {
+    try {// Make API call to register laundry partner
       const response = await fetch('http://localhost:5000/api/auth/register-laundry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
