@@ -17,6 +17,8 @@ const bookingRoutes = require('./routes/bookingRoute');
 const reviewRoutes = require('./routes/reviewRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const maintenanceRoutes = require('./routes/maintenanceRoute'); 
+// -------------------------------------
+const maintainerRoutes = require('./routes/maintainerRoute');
 const chatbotRoutes = require('./routes/chatbotRoute');
 const paymentRoutes = require('./routes/paymentRoute');
 const laundryRoutes = require('./routes/laundryRoute');
@@ -84,6 +86,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/maintenance', maintenanceRoutes); 
+// ---------------------------------------
+app.use('/api/maintainers', maintainerRoutes);
 app.use('/api/chat', chatbotRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/laundry', laundryRoutes); 

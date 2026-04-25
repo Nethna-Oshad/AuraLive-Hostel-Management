@@ -34,6 +34,7 @@ import LaundrySettings from './pages/Laundry/LaundrySettings';
 import MaintainersDashboard from './pages/Maintainers/MaintainersDashboard';
 import MaintainerTasks from './pages/Maintainers/MaintainerTasks'; 
 import MaintainerHistory from './pages/Maintainers/MaintainerHistory'; 
+import MaintainerProfile from './pages/Maintainers/MaintainerProfile';
 import MealDashboard from './pages/Meal/MealDashboard';
 import MealMenuManagement from './pages/Meal/MealMenuManagement';
 import MealInsights from './pages/Meal/MealInsights';
@@ -114,6 +115,7 @@ function App() {
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
         <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> 
         <Route path="/maintainer/completed" element={<MaintainerHistory />} /> 
+        <Route path="/maintainer/profile" element={<MaintainerProfile />} />
         <Route path="/meal/dashboard" element={<MealDashboard />} />
         <Route path="/meal/orders" element={<MealDashboard />} />
         <Route path="/meal/menu" element={<MealMenuManagement />} />
