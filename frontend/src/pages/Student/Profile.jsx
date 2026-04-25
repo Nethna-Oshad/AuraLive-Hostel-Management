@@ -12,6 +12,9 @@ import toast from 'react-hot-toast';
 const Profile = () => {
   const navigate = useNavigate();
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+  const userEmail = userInfo?.email;
+  const userRole = userInfo?.role;
+  void motion;
   const fileInputRef = useRef(null);
 
   const [bookingData, setBookingData] = useState(null);
@@ -31,7 +34,7 @@ const Profile = () => {
   });
 
   useEffect(() => {
-    if (!userInfo || userInfo.role !== 'Student') {
+    if (!userEmail || userRole !== 'Student') {
       navigate('/login');
       return;
     }
@@ -39,7 +42,7 @@ const Profile = () => {
     const fetchProfileData = async () => {
       try {
         // Fetch Booking Data
-        const response = await axios.get(`http://localhost:5000/api/bookings/${userInfo.email}`);
+        const response = await axios.get(`http://localhost:5000/api/bookings/${userEmail}`);
         
         // If successful
         if (response.data && response.data.booking) {
@@ -92,7 +95,7 @@ const Profile = () => {
     };
 
     fetchProfileData();
-  }, [userInfo?.email, navigate]); // Added userInfo.email to dependencies
+  }, [userEmail, userRole, navigate]);
 
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -106,7 +109,6 @@ const Profile = () => {
     if (file && bookingData) {
       setProfilePicPreview(URL.createObjectURL(file)); 
       const submitData = new FormData();
-      submitData.append('profileImage', file);
 
       try {
         toast.loading('Saving picture...', { id: 'photo' });
@@ -242,14 +244,15 @@ const Profile = () => {
               <div className="p-6 flex-1 overflow-y-auto bg-gray-50 custom-scrollbar">
                 {loadingInvoices ? (
                   <div className="flex justify-center items-center py-12">
-                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#2872A1]"></div>
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-[#2872A1]"></div>
                   </div>
                 ) : invoices.length > 0 ? (
                   <div className="space-y-4">
                     {invoices.map((invoice) => (
-                      <motion.div 
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                        key={invoice._id} 
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        key={invoice._id}
                         className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center hover:border-[#CBDDE9] transition-colors"
                       >
                         <div>
@@ -259,7 +262,7 @@ const Profile = () => {
                             {new Date(invoice.paidAt || invoice.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                           </p>
                         </div>
-                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-2">
+                        <div className="flex flex-col items-start sm:items-end gap-2">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${invoice.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
                             {invoice.status}
                           </span>
