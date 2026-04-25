@@ -21,6 +21,7 @@ const contactRoutes = require('./routes/contactRoutes');
 // Added for Maintenance Feature (My Part)
 const maintenanceRoutes = require('./routes/maintenanceRoute'); 
 // -------------------------------------
+const maintainerRoutes = require('./routes/maintainerRoute');
 const chatbotRoutes = require('./routes/chatbotRoute');
 const paymentRoutes = require('./routes/paymentRoute');
 
@@ -89,6 +90,7 @@ app.use('/api/bookings', bookingRoutes);
 // Added for Maintenance Feature (My Part)
 app.use('/api/maintenance', maintenanceRoutes); 
 // ---------------------------------------
+app.use('/api/maintainers', maintainerRoutes);
 app.use('/api/chat', chatbotRoutes);
 app.use('/api/payment', paymentRoutes);
 
