@@ -10,6 +10,9 @@ const maintainerSchema = mongoose.Schema({
   status: { type: String, default: 'Inactive' }, 
   specialization: { type: String, enum: ['Plumbing', 'Electrical', 'Furniture', 'Cleaning', 'General', 'Other'], default: 'General' },
   availability: { type: String, enum: ['Available', 'On Job', 'Off Duty'], default: 'Available' },
+  experience: { type: String, default: '1 Year' },
+  bio: { type: String, default: 'Maintenance Professional at AuraFix' },
+  profileImage: { type: String, default: '' },
   jobsCompleted: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0.0 }
 }, { timestamps: true });

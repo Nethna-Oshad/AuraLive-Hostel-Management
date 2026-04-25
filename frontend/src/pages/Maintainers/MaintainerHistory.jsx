@@ -14,7 +14,7 @@ const MaintainerHistory = () => {
         const res = await fetch(`http://localhost:5000/api/maintenance/partner/${userInfo._id}`);
         const data = await res.json();
         if (res.ok) {
-          // ඉවර කරපු වැඩ (Resolved) විතරක් ගන්නවා
+          
           setHistory(data.filter(t => t.status === 'Resolved' || t.status === 'Closed'));
         }
       } catch (err) { 
