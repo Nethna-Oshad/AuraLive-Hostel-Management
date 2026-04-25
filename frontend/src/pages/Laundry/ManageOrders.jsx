@@ -9,7 +9,7 @@ const ManageOrders = () => {
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState(null); 
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-
+  // Fetch orders on component mount
   useEffect(() => {
     fetchOrders();
   }, []);
