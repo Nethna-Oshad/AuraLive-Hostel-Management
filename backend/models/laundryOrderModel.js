@@ -8,7 +8,7 @@ const laundryOrderSchema = mongoose.Schema({
     ref: 'Student' 
   },
 
-  // --- Order Inputs ---
+  
   weightInKg: { 
     type: Number, 
     required: true 

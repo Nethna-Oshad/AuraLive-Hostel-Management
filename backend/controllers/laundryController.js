@@ -1,9 +1,7 @@
 const LaundryOrder = require('../models/laundryOrderModel');
 const Laundry = require('../models/laundryModel');
 
-// ==========================================
-// 1. Get Estimates (Dynamic Pricing Logic)
-// ==========================================
+
 const getEstimates = async (req, res) => {
   try {
     const { weightInKg, expectedDate, serviceType } = req.body;

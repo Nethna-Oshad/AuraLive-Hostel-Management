@@ -13,7 +13,7 @@ const LaundrySettings = () => {
     dryCleanPrice: 150,
     oneDayDeliveryFee: 100
   });
-
+// Fetch current prices on component mount
   useEffect(() => {
     const fetchPrices = async () => {
       try {

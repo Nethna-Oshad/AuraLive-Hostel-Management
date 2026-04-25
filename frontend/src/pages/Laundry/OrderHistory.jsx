@@ -12,7 +12,7 @@ const OrderHistory = () => {
   useEffect(() => {
     fetchHistory();
   }, []);
-
+// Fetch order history and filter for 'Completed' status
   const fetchHistory = async () => {
     try {
       const response = await fetch(`http://localhost:5000/api/laundry/partner/${userInfo._id}`);
