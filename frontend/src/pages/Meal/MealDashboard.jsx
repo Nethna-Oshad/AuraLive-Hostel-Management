@@ -20,26 +20,54 @@ const MealDashboard = () => {
     }
   }, []);
 
-  const [dateFilter, setDateFilter] = useState('');
+  const [filters, setFilters] = useState({
+    date: '',
+    deliveryStatus: '',
+    paymentStatus: '',
+    search: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState({
+    date: '',
+    deliveryStatus: '',
+    paymentStatus: '',
+  });
   const [orders, setOrders] = useState([]);
+  const [summary, setSummary] = useState({
+    todayOrders: 0,
+    pendingOrders: 0,
+    deliveredOrders: 0,
+    unpaidOrders: 0,
+    revenueToday: 0,
+  });
   const [loading, setLoading] = useState(true);
 
-  const normalize = (value) => String(value || '').trim().toLowerCase();
-
-  const fetchOrders = async () => {
+  const fetchOrdersAndSummary = async () => {
     try {
       const params = new URLSearchParams();
-      if (dateFilter) params.append('date', dateFilter);
-      const response = await fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`);
-      const data = await response.json();
-      const externalOrders = Array.isArray(data) ? data.filter((order) => order.type === 'External') : [];
-      const hasShopMapped = externalOrders.some(
-        (order) => normalize(order.externalShopName) === normalize(userInfo?.name)
-      );
-      const scopedOrders = hasShopMapped
-        ? externalOrders.filter((order) => normalize(order.externalShopName) === normalize(userInfo?.name))
-        : externalOrders;
-      setOrders(scopedOrders);
+      if (appliedFilters.date) params.append('date', appliedFilters.date);
+      if (appliedFilters.deliveryStatus) params.append('deliveryStatus', appliedFilters.deliveryStatus);
+      if (appliedFilters.paymentStatus) params.append('paymentStatus', appliedFilters.paymentStatus);
+      params.append('supplierEmail', userInfo?.email || '');
+
+      const [ordersRes, summaryRes] = await Promise.all([
+        fetch(`http://localhost:5000/api/meals/supplier/orders?${params.toString()}`),
+        fetch(`http://localhost:5000/api/meals/supplier/summary?${params.toString()}`),
+      ]);
+
+      const ordersData = await ordersRes.json();
+      const summaryData = await summaryRes.json();
+
+      if (!ordersRes.ok || !summaryRes.ok) {
+        throw new Error(summaryData.message || ordersData.message || 'Failed to load supplier orders.');
+      }
+      setOrders(Array.isArray(ordersData) ? ordersData : []);
+      setSummary({
+        todayOrders: summaryData.todayOrders || 0,
+        pendingOrders: summaryData.pendingOrders || 0,
+        deliveredOrders: summaryData.deliveredOrders || 0,
+        unpaidOrders: summaryData.unpaidOrders || 0,
+        revenueToday: summaryData.revenueToday || 0,
+      });
     } catch {
       toast.error('Failed to load supplier orders.');
     }
@@ -49,38 +77,35 @@ const MealDashboard = () => {
     const load = async () => {
       if (!userInfo || userInfo.role !== 'MealSupplier') return;
       setLoading(true);
-      await fetchOrders();
+      await fetchOrdersAndSummary();
       setLoading(false);
     };
     load();
-  }, [dateFilter, userInfo]);
+  }, [appliedFilters, userInfo]);
 
-  const summary = useMemo(() => {
-    const pendingOrders = orders.filter(
-      (order) =>
-        order.status !== 'Cancelled' &&
-        ['Pending', 'Preparing', 'Out for Delivery'].includes(order.deliveryStatus || 'Pending')
-    ).length;
-    const deliveredOrders = orders.filter(
-      (order) => order.status !== 'Cancelled' && (order.deliveryStatus || 'Pending') === 'Delivered'
-    ).length;
-    const unpaidOrders = orders.filter(
-      (order) => order.status !== 'Cancelled' && order.paymentStatus === 'Unpaid'
-    ).length;
-    const revenueToday = orders
-      .filter((order) => order.status !== 'Cancelled' && order.paymentStatus === 'Paid')
-      .reduce((sum, order) => sum + (Number(order.externalAmount) || 0), 0);
+  const filteredOrders = useMemo(() => {
+    const term = String(filters.search || '').trim().toLowerCase();
+    if (!term) return orders;
+    return orders.filter((order) => {
+      const itemNames = Array.isArray(order.externalItems)
+        ? order.externalItems.map((item) => item.itemName).join(' ')
+        : order.externalMenuItem || '';
+      const haystack = [
+        order.studentName,
+        order.studentEmail,
+        order.externalShopName,
+        order.externalMenuItem,
+        itemNames,
+        order.slotLabel,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [orders, filters.search]);
 
-    return {
-      todayOrders: orders.length,
-      pendingOrders,
-      deliveredOrders,
-      unpaidOrders,
-      revenueToday,
-    };
-  }, [orders]);
-
-  const recentOrders = useMemo(() => orders.slice(0, 8), [orders]);
+  const recentOrders = useMemo(() => filteredOrders.slice(0, 8), [filteredOrders]);
 
   const handleDeliveryStatusChange = async (orderId, deliveryStatus) => {
     // Optimistic UI Update
@@ -92,7 +117,7 @@ const MealDashboard = () => {
       const response = await fetch(`http://localhost:5000/api/meals/supplier/orders/${orderId}/delivery-status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deliveryStatus, supplierName: userInfo?.name }),
+        body: JSON.stringify({ deliveryStatus, supplierEmail: userInfo?.email }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -101,7 +126,7 @@ const MealDashboard = () => {
       toast.success('Delivery status updated.');
     } catch (error) {
       toast.error(error.message || 'Failed to update delivery status.');
-      await fetchOrders(); // Revert on failure
+      await fetchOrdersAndSummary(); // Revert on failure
     }
   };
 
@@ -116,6 +141,8 @@ const MealDashboard = () => {
         return 'bg-blue-50 text-blue-700 border-blue-200 focus:ring-blue-500';
       case 'Cancelled':
         return 'bg-red-50 text-red-700 border-red-200 focus:ring-red-500';
+      case 'AwaitingAcceptance':
+        return 'bg-slate-50 text-slate-700 border-slate-200 focus:ring-slate-500';
       case 'Pending':
       default:
         return 'bg-amber-50 text-amber-700 border-amber-200 focus:ring-amber-500';
@@ -130,27 +157,71 @@ const MealDashboard = () => {
         <main className="flex-1 overflow-y-auto p-8">
           
           {/* Header Section */}
-          <div className="flex flex-col gap-6 mb-8 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-6 mb-8">
             <div>
               <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Orders Dashboard</h2>
               <p className="text-sm text-slate-500 mt-1">Manage external meal orders and track delivery progress in real-time.</p>
             </div>
-            
-            <div className="flex items-center bg-white border border-slate-200 shadow-sm rounded-xl px-4 py-2.5 transition-all hover:shadow-md focus-within:ring-2 focus-within:ring-[#2872A1]">
-              <CalendarDays className="w-5 h-5 text-slate-400 mr-3" />
-              <div className="flex flex-col">
-                <label htmlFor="supplier-order-date" className="text-[10px] font-bold tracking-wider text-slate-400 uppercase leading-none mb-1">
-                  Filter by Date
-                </label>
+
+            <div className="grid grid-cols-1 gap-3 p-4 bg-white border border-slate-200 rounded-xl shadow-sm md:grid-cols-5">
+              <div className="flex items-center border border-slate-200 rounded-lg px-3">
+                <CalendarDays className="w-4 h-4 text-slate-400 mr-2" />
                 <input
                   id="supplier-order-date"
                   name="supplierOrderDate"
                   type="date"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="text-sm font-semibold text-slate-700 bg-transparent border-none outline-none p-0 cursor-pointer"
+                  value={filters.date}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, date: e.target.value }))}
+                  className="w-full py-2 text-sm text-slate-700 bg-transparent outline-none"
                 />
               </div>
+              <select
+                id="supplier-filter-delivery"
+                name="supplierFilterDelivery"
+                value={filters.deliveryStatus}
+                onChange={(e) => setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">All Delivery States</option>
+                <option value="AwaitingAcceptance">Awaiting Acceptance</option>
+                <option value="Pending">Order Accepted</option>
+                <option value="Preparing">Preparation Started</option>
+                <option value="Out for Delivery">Preparation Completed</option>
+                <option value="Delivered">Ready for Pickup</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+              <select
+                id="supplier-filter-payment"
+                name="supplierFilterPayment"
+                value={filters.paymentStatus}
+                onChange={(e) => setFilters((prev) => ({ ...prev, paymentStatus: e.target.value }))}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700"
+              >
+                <option value="">All Payment States</option>
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
+              </select>
+              <input
+                id="supplier-search"
+                name="supplierSearch"
+                type="text"
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder="Search student, item, shop..."
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700"
+              />
+              <button
+                onClick={() =>
+                  setAppliedFilters({
+                    date: filters.date,
+                    deliveryStatus: filters.deliveryStatus,
+                    paymentStatus: filters.paymentStatus,
+                  })
+                }
+                className="px-4 py-2 text-sm font-bold text-white rounded-lg bg-[#2872A1] hover:bg-[#1f5a80]"
+              >
+                Apply Filters
+              </button>
             </div>
           </div>
 
@@ -255,6 +326,17 @@ const MealDashboard = () => {
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {recentOrders.map((order) => (
                       <tr key={order._id} className="hover:bg-slate-50/50 transition-colors duration-200">
+                        {(() => {
+                          const canAcceptUnpaid =
+                            order.deliveryStatus === 'AwaitingAcceptance' &&
+                            order.paymentStatus !== 'Paid' &&
+                            order.status !== 'Cancelled';
+                          const canCancelUnpaid = canAcceptUnpaid;
+                          const disableStatusUpdate =
+                            order.status === 'Cancelled' || (order.paymentStatus !== 'Paid' && !canAcceptUnpaid);
+
+                          return (
+                            <>
                         
                         {/* Student Column */}
                         <td className="px-6 py-4">
@@ -270,8 +352,18 @@ const MealDashboard = () => {
 
                         {/* Order Column */}
                         <td className="px-6 py-4">
-                          <p className="font-bold text-slate-800">{order.externalMenuItem || 'Kitchen Booking'}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">{order.externalShopName || '-'}</p>
+                          {Array.isArray(order.externalItems) && order.externalItems.length > 0 ? (
+                            <div className="space-y-1">
+                              {order.externalItems.map((item, idx) => (
+                                <p key={idx} className="font-bold text-slate-800 text-xs">
+                                  {item.itemName} <span className="text-slate-500 font-normal">x{item.quantity}</span>
+                                </p>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="font-bold text-slate-800 text-xs">{order.externalMenuItem || 'Kitchen Booking'}</p>
+                          )}
+                          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">{order.externalShopName || '-'}</p>
                         </td>
 
                         {/* Payment Column */}
@@ -295,13 +387,15 @@ const MealDashboard = () => {
                               name={`supplierDelivery-${order._id}`}
                               value={order.deliveryStatus || 'Pending'}
                               onChange={(e) => handleDeliveryStatusChange(order._id, e.target.value)}
+                              disabled={disableStatusUpdate}
                               className={`w-full appearance-none px-3 py-2 pr-8 text-xs font-bold tracking-wide rounded-lg border outline-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-offset-1 ${getStatusStyles(order.deliveryStatus || 'Pending')}`}
                             >
-                              <option value="Pending">Pending</option>
-                              <option value="Preparing">Preparing</option>
-                              <option value="Out for Delivery">Out for Delivery</option>
-                              <option value="Delivered">Delivered</option>
-                              <option value="Cancelled">Cancelled</option>
+                              <option value="AwaitingAcceptance">Awaiting Acceptance</option>
+                              <option value="Pending">Order Accepted</option>
+                              {canCancelUnpaid && <option value="Cancelled">Cancelled</option>}
+                              {!canAcceptUnpaid && <option value="Preparing">Preparation Started</option>}
+                              {!canAcceptUnpaid && <option value="Out for Delivery">Preparation Completed</option>}
+                              {!canAcceptUnpaid && <option value="Delivered">Ready for Pickup</option>}
                             </select>
                             {/* Custom dropdown arrow to replace the native one removed by appearance-none */}
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-current opacity-70">
@@ -312,6 +406,9 @@ const MealDashboard = () => {
                           </div>
                         </td>
 
+                            </>
+                          );
+                        })()}
                       </tr>
                     ))}
                   </tbody>

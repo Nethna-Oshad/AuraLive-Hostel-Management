@@ -1,6 +1,9 @@
 const MealBooking = require('../models/mealBookingModel');
 const MealSlot = require('../models/mealSlotModel');
 const MealMenuItem = require('../models/mealMenuItemModel');
+const MealSupplier = require('../models/mealSupplierModel');
+
+const MIN_STRIPE_LKR_AMOUNT = 160;
 
 const DEFAULT_KITCHEN_SLOTS = [
   { label: 'Breakfast Prep', timeRange: '06:00 - 07:00', capacity: 4 },
@@ -9,15 +12,61 @@ const DEFAULT_KITCHEN_SLOTS = [
   { label: 'Dinner Prep - Late', timeRange: '19:00 - 20:00', capacity: 4 },
 ];
 
-const THIRD_PARTY_SHOPS = [
-  { name: 'City Bite Kitchen', eta: '25-35 min', cuisine: 'Rice & Curry', basePrice: 1250 },
-  { name: 'Campus Kottu Point', eta: '20-30 min', cuisine: 'Kottu & Noodles', basePrice: 1100 },
-  { name: 'Green Bowl Meals', eta: '30-40 min', cuisine: 'Healthy Meal Boxes', basePrice: 1350 },
-];
+const buildEtaFromName = (name = '') => {
+  const seed = name.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const start = 20 + (seed % 4) * 5; // 20, 25, 30, 35
+  return `${start}-${start + 10} min`;
+};
+
+const getDynamicThirdPartyShops = async () => {
+  const suppliers = await MealSupplier.find({ status: 'Active' })
+    .select('name logoUrl shopTagline')
+    .sort({ name: 1 });
+  if (suppliers.length === 0) return [];
+
+  const supplierNames = suppliers.map((s) => s.name);
+  const menuItems = await MealMenuItem.find({
+    supplierName: { $in: supplierNames },
+    isAvailable: true,
+  }).select('supplierName category price');
+
+  const bySupplier = menuItems.reduce((acc, item) => {
+    if (!acc[item.supplierName]) acc[item.supplierName] = [];
+    acc[item.supplierName].push(item);
+    return acc;
+  }, {});
+
+  return suppliers.map((supplier) => {
+    const items = bySupplier[supplier.name] || [];
+    const basePrice =
+      items.length > 0
+        ? Math.min(...items.map((i) => Number(i.price) || 1200))
+        : 1200;
+    const cuisine =
+      items.length > 0
+        ? items[0].category || 'Meals'
+        : 'Meals';
+
+    return {
+      name: supplier.name,
+      logoUrl: supplier.logoUrl || '',
+      tagline: supplier.shopTagline || '',
+      eta: buildEtaFromName(supplier.name),
+      cuisine,
+      basePrice,
+    };
+  });
+};
 
 const getBookingDate = (dateParam) => {
   if (dateParam) return dateParam;
   return new Date().toISOString().slice(0, 10);
+};
+
+const resolveSupplierByEmail = async (supplierEmail) => {
+  const cleanEmail = String(supplierEmail || '').trim();
+  if (!cleanEmail) return null;
+  return MealSupplier.findOne({ email: cleanEmail });
 };
 
 const ensureDefaultSlots = async () => {
@@ -30,6 +79,7 @@ const getKitchenSlots = async (req, res) => {
   try {
     const bookingDate = getBookingDate(req.query.date);
     await ensureDefaultSlots();
+    const thirdPartyShops = await getDynamicThirdPartyShops();
     const slotsFromDb = await MealSlot.find({ isActive: true }).sort({ createdAt: 1 });
 
     const counts = await MealBooking.aggregate([
@@ -63,7 +113,7 @@ const getKitchenSlots = async (req, res) => {
       date: bookingDate,
       slots,
       isAllSlotsFull,
-      thirdPartyShops: THIRD_PARTY_SHOPS,
+      thirdPartyShops,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -105,9 +155,10 @@ const createKitchenBooking = async (req, res) => {
     });
 
     if (bookedCount >= slot.capacity) {
+      const thirdPartyShops = await getDynamicThirdPartyShops();
       return res.status(409).json({
         message: 'This slot is already full. Please select another slot or order from third-party shops.',
-        thirdPartyShops: THIRD_PARTY_SHOPS,
+        thirdPartyShops,
       });
     }
 
@@ -130,16 +181,44 @@ const createKitchenBooking = async (req, res) => {
 
 const createExternalOrder = async (req, res) => {
   try {
-    const { studentEmail, studentName, bookingDate, shopName, menuItem, slotId, notes } = req.body;
+    const { studentEmail, studentName, bookingDate, shopName, menuItem, menuItemId, slotId, notes } = req.body;
 
     if (!studentEmail || !studentName || !shopName || !menuItem) {
       return res.status(400).json({ message: 'studentEmail, studentName, shopName and menuItem are required.' });
     }
 
     const date = getBookingDate(bookingDate);
+    const thirdPartyShops = await getDynamicThirdPartyShops();
     const selectedSlot = slotId ? await MealSlot.findById(slotId) : null;
-    const selectedShop = THIRD_PARTY_SHOPS.find((shop) => shop.name === shopName);
-    const externalAmount = selectedShop ? selectedShop.basePrice : 1200;
+    const selectedShop = thirdPartyShops.find((shop) => shop.name === shopName);
+    if (!selectedShop) {
+      return res.status(400).json({ message: 'Selected shop is not available.' });
+    }
+    let matchedMenuItem = null;
+    if (menuItemId) {
+      matchedMenuItem = await MealMenuItem.findOne({
+        _id: menuItemId,
+        supplierName: shopName,
+      }).select('price itemName');
+    }
+    if (!matchedMenuItem) {
+      matchedMenuItem = await MealMenuItem.findOne({
+        supplierName: shopName,
+        itemName: menuItem,
+        isAvailable: true,
+      })
+        .sort({ createdAt: -1 })
+        .select('price itemName');
+    }
+
+    if (!matchedMenuItem) {
+      return res.status(400).json({ message: 'Selected menu item is not available.' });
+    }
+
+    const externalAmount = Number(matchedMenuItem.price);
+    if (!Number.isFinite(externalAmount) || externalAmount < 0) {
+      return res.status(400).json({ message: 'Invalid menu item price configured by supplier.' });
+    }
     const slotLabel = selectedSlot
       ? `${selectedSlot.label} (${selectedSlot.timeRange})`
       : 'External Order Window';
@@ -153,9 +232,95 @@ const createExternalOrder = async (req, res) => {
       slotLabel,
       notes: notes || '',
       externalShopName: shopName,
-      externalMenuItem: menuItem,
+      externalMenuItem: matchedMenuItem.itemName || menuItem,
       externalAmount,
       paymentStatus: 'Unpaid',
+      deliveryStatus: 'AwaitingAcceptance',
+    });
+
+    res.status(201).json(booking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createExternalCartOrder = async (req, res) => {
+  try {
+    const { studentEmail, studentName, bookingDate, items, slotId, notes } = req.body;
+
+    if (!studentEmail || !studentName || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'studentEmail, studentName and cart items are required.' });
+    }
+    const distinctRequestedShops = [...new Set(items.map((item) => item.shopName).filter(Boolean))];
+    if (distinctRequestedShops.length > 1) {
+      return res.status(400).json({ message: 'Cart checkout supports items from one store only.' });
+    }
+
+    const date = getBookingDate(bookingDate);
+    const selectedSlot = slotId ? await MealSlot.findById(slotId) : null;
+    const slotLabel = selectedSlot
+      ? `${selectedSlot.label} (${selectedSlot.timeRange})`
+      : 'External Order Window';
+
+    const normalizedItems = [];
+    for (const rawItem of items) {
+      const quantity = Number(rawItem.quantity) || 0;
+      if (quantity < 1) {
+        return res.status(400).json({ message: 'Each cart item must have quantity at least 1.' });
+      }
+
+      const menuItem = await MealMenuItem.findOne({
+        _id: rawItem.menuItemId,
+        supplierName: rawItem.shopName,
+        isAvailable: true,
+      }).select('supplierName itemName price');
+
+      if (!menuItem) {
+        return res.status(400).json({ message: `Selected item is not available: ${rawItem.itemName || 'Unknown item'}.` });
+      }
+
+      const unitPrice = Number(menuItem.price);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        return res.status(400).json({ message: `Invalid price configured for item: ${menuItem.itemName}.` });
+      }
+
+      normalizedItems.push({
+        supplierName: menuItem.supplierName,
+        menuItemId: String(rawItem.menuItemId || menuItem._id),
+        itemName: menuItem.itemName,
+        quantity,
+        unitPrice,
+        lineTotal: unitPrice * quantity,
+      });
+    }
+
+    const externalAmount = normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    if (externalAmount <= 0) {
+      return res.status(400).json({ message: 'Cart total must be greater than 0.' });
+    }
+
+    const distinctShops = [...new Set(normalizedItems.map((item) => item.supplierName))];
+    if (distinctShops.length > 1) {
+      return res.status(400).json({ message: 'Cart checkout supports items from one store only.' });
+    }
+    const externalShopName = distinctShops[0];
+    const totalQty = normalizedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const externalMenuItem = `${totalQty} item${totalQty > 1 ? 's' : ''}`;
+
+    const booking = await MealBooking.create({
+      studentEmail,
+      studentName,
+      bookingDate: date,
+      type: 'External',
+      slotId: selectedSlot ? selectedSlot.id : 'external-order',
+      slotLabel,
+      notes: notes || '',
+      externalShopName,
+      externalMenuItem,
+      externalAmount,
+      externalItems: normalizedItems,
+      paymentStatus: 'Unpaid',
+      deliveryStatus: 'AwaitingAcceptance',
     });
 
     res.status(201).json(booking);
@@ -168,6 +333,90 @@ const getStudentMealBookings = async (req, res) => {
   try {
     const bookings = await MealBooking.find({ studentEmail: req.params.email }).sort({ createdAt: -1 });
     res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getMealOrderByReference = async (req, res) => {
+  try {
+    const orderReference = String(req.params.reference || '').trim().toUpperCase();
+    if (!orderReference) {
+      return res.status(400).json({ message: 'Order reference is required.' });
+    }
+
+    const booking = await MealBooking.findOne({ orderReference, type: 'External' });
+    if (!booking) {
+      return res.status(404).json({ message: 'Meal order not found for this reference.' });
+    }
+
+    res.json({
+      _id: booking._id,
+      orderReference: booking.orderReference,
+      bookingDate: booking.bookingDate,
+      slotLabel: booking.slotLabel,
+      studentName: booking.studentName,
+      studentEmail: booking.studentEmail,
+      externalShopName: booking.externalShopName,
+      externalMenuItem: booking.externalMenuItem,
+      externalAmount: booking.externalAmount,
+      externalItems: booking.externalItems || [],
+      paymentStatus: booking.paymentStatus,
+      deliveryStatus: booking.deliveryStatus,
+      status: booking.status,
+      paidAt: booking.paidAt || null,
+      createdAt: booking.createdAt,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteStudentCompletedExternalOrder = async (req, res) => {
+  try {
+    const { studentEmail } = req.query;
+    if (!studentEmail) {
+      return res.status(400).json({ message: 'studentEmail is required.' });
+    }
+
+    const booking = await MealBooking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Meal order not found.' });
+    if (booking.studentEmail !== studentEmail) {
+      return res.status(403).json({ message: 'You can only delete your own meal orders.' });
+    }
+    if (booking.type !== 'External') {
+      return res.status(400).json({ message: 'Only external orders can be deleted from this history.' });
+    }
+
+    const canDelete =
+      booking.status === 'Cancelled' ||
+      booking.status === 'Completed' ||
+      booking.deliveryStatus === 'Delivered';
+    if (!canDelete) {
+      return res.status(400).json({ message: 'Only completed/cancelled external orders can be deleted.' });
+    }
+
+    await MealBooking.findByIdAndDelete(booking._id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteStudentCompletedExternalOrdersBulk = async (req, res) => {
+  try {
+    const { studentEmail } = req.query;
+    if (!studentEmail) {
+      return res.status(400).json({ message: 'studentEmail is required.' });
+    }
+
+    const result = await MealBooking.deleteMany({
+      studentEmail,
+      type: 'External',
+      $or: [{ status: 'Cancelled' }, { status: 'Completed' }, { deliveryStatus: 'Delivered' }],
+    });
+
+    res.json({ success: true, deletedCount: result.deletedCount || 0 });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -197,6 +446,9 @@ const updateDeliveryStatus = async (req, res) => {
 
     const order = await MealBooking.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Meal order not found.' });
+    if (order.type === 'External') {
+      return res.status(403).json({ message: 'Admin is not allowed to update delivery status for external orders.' });
+    }
 
     order.deliveryStatus = deliveryStatus;
     if (deliveryStatus === 'Cancelled') {
@@ -398,19 +650,52 @@ const deleteAdminSlot = async (req, res) => {
 
 const getSupplierOrders = async (req, res) => {
   try {
-    const { supplierName, date, deliveryStatus, paymentStatus } = req.query;
-    const query = {};
+    const { supplierEmail, date, deliveryStatus, paymentStatus } = req.query;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier) {
+      return res.status(400).json({ message: 'Valid supplierEmail is required.' });
+    }
 
-    if (supplierName) query.externalShopName = supplierName;
+    const query = { type: 'External' };
     if (date) query.bookingDate = date;
-    if (deliveryStatus) query.deliveryStatus = deliveryStatus;
     if (paymentStatus) query.paymentStatus = paymentStatus;
+    if (deliveryStatus && deliveryStatus !== 'AwaitingAcceptance') query.deliveryStatus = deliveryStatus;
 
-    // Kitchen bookings have no shop, so supplier view focuses on external shop orders.
-    query.type = 'External';
+    const rawOrders = await MealBooking.find(query).sort({ createdAt: -1 });
+    const normalizedOrders = rawOrders
+      .map((order) => {
+        const supplierItems = Array.isArray(order.externalItems)
+          ? order.externalItems.filter((item) => item.supplierName === supplier.name)
+          : [];
+        const hasSupplierItems = supplierItems.length > 0;
+        const isDirectSupplierOrder = order.externalShopName === supplier.name;
+        if (!hasSupplierItems && !isDirectSupplierOrder) return null;
 
-    const orders = await MealBooking.find(query).sort({ createdAt: -1 });
-    res.json(orders);
+        const supplierAmount = hasSupplierItems
+          ? supplierItems.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0)
+          : Number(order.externalAmount) || 0;
+        const supplierMenuItem = hasSupplierItems
+          ? `${supplierItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} item(s)`
+          : order.externalMenuItem;
+
+        const plain = order.toObject();
+        return {
+          ...plain,
+          externalAmount: supplierAmount,
+          externalMenuItem: supplierMenuItem,
+          externalItems: hasSupplierItems ? supplierItems : plain.externalItems || [],
+          externalShopName: supplier.name,
+          deliveryStatus: plain.deliveryStatus || 'Pending',
+        };
+      })
+      .filter(Boolean);
+
+    // Backward compatibility for legacy filter value used by UI.
+    if (deliveryStatus === 'AwaitingAcceptance') {
+      return res.json(normalizedOrders.filter((order) => (order.deliveryStatus || 'Pending') === 'Pending'));
+    }
+
+    res.json(normalizedOrders);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -418,46 +703,51 @@ const getSupplierOrders = async (req, res) => {
 
 const getSupplierSummary = async (req, res) => {
   try {
-    const { supplierName } = req.query;
-    if (!supplierName) {
-      return res.status(400).json({ message: 'supplierName is required.' });
+    const { supplierEmail, date } = req.query;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier) {
+      return res.status(400).json({ message: 'Valid supplierEmail is required.' });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const baseQuery = { type: 'External', externalShopName: supplierName };
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+    const orders = await MealBooking.find({ type: 'External', bookingDate: targetDate }).sort({ createdAt: -1 });
 
-    const [todayOrders, pendingOrders, deliveredOrders, paidRevenue, unpaidOrders] = await Promise.all([
-      MealBooking.countDocuments({ ...baseQuery, bookingDate: today }),
-      MealBooking.countDocuments({
-        ...baseQuery,
-        bookingDate: today,
-        deliveryStatus: { $in: ['Pending', 'Preparing', 'Out for Delivery'] },
-        status: { $ne: 'Cancelled' },
-      }),
-      MealBooking.countDocuments({
-        ...baseQuery,
-        bookingDate: today,
-        deliveryStatus: 'Delivered',
-        status: { $ne: 'Cancelled' },
-      }),
-      MealBooking.aggregate([
-        { $match: { ...baseQuery, bookingDate: today, paymentStatus: 'Paid', status: { $ne: 'Cancelled' } } },
-        { $group: { _id: null, total: { $sum: '$externalAmount' } } },
-      ]),
-      MealBooking.countDocuments({
-        ...baseQuery,
-        bookingDate: today,
-        paymentStatus: 'Unpaid',
-        status: { $ne: 'Cancelled' },
-      }),
-    ]);
+    const supplierOrders = orders
+      .map((order) => {
+        const supplierItems = Array.isArray(order.externalItems)
+          ? order.externalItems.filter((item) => item.supplierName === supplier.name)
+          : [];
+        const hasSupplierItems = supplierItems.length > 0;
+        const isDirectSupplierOrder = order.externalShopName === supplier.name;
+        if (!hasSupplierItems && !isDirectSupplierOrder) return null;
+        const supplierAmount = hasSupplierItems
+          ? supplierItems.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0)
+          : Number(order.externalAmount) || 0;
+        return {
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          deliveryStatus: order.deliveryStatus || 'Pending',
+          externalAmount: supplierAmount,
+        };
+      })
+      .filter(Boolean);
+
+    const activeSupplierOrders = supplierOrders.filter((order) => order.status !== 'Cancelled');
+    const pendingOrders = activeSupplierOrders.filter((order) =>
+      ['Pending', 'Preparing', 'Out for Delivery'].includes(order.deliveryStatus)
+    ).length;
+    const deliveredOrders = activeSupplierOrders.filter((order) => order.deliveryStatus === 'Delivered').length;
+    const unpaidOrders = activeSupplierOrders.filter((order) => order.paymentStatus === 'Unpaid').length;
+    const revenueToday = activeSupplierOrders
+      .filter((order) => order.paymentStatus === 'Paid')
+      .reduce((sum, order) => sum + (Number(order.externalAmount) || 0), 0);
 
     res.json({
-      date: today,
-      todayOrders,
+      date: targetDate,
+      todayOrders: supplierOrders.length,
       pendingOrders,
       deliveredOrders,
-      revenueToday: paidRevenue[0]?.total || 0,
+      revenueToday,
       unpaidOrders,
     });
   } catch (error) {
@@ -468,10 +758,36 @@ const getSupplierSummary = async (req, res) => {
 const getSupplierMenuItems = async (req, res) => {
   try {
     const { supplierEmail } = req.query;
-    if (!supplierEmail) {
-      return res.status(400).json({ message: 'supplierEmail is required.' });
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier) {
+      return res.status(400).json({ message: 'Valid supplierEmail is required.' });
     }
-    const items = await MealMenuItem.find({ supplierEmail }).sort({ createdAt: -1 });
+    const items = await MealMenuItem.find({ supplierEmail: supplier.email }).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPublicShopMenuItems = async (req, res) => {
+  try {
+    const { supplierName } = req.query;
+    if (!supplierName) {
+      return res.status(400).json({ message: 'supplierName is required.' });
+    }
+
+    const supplier = await MealSupplier.findOne({ name: supplierName, status: 'Active' });
+    if (!supplier) {
+      return res.json([]);
+    }
+
+    const items = await MealMenuItem.find({
+      supplierName,
+      isAvailable: true,
+    })
+      .sort({ createdAt: -1 })
+      .select('itemName category price prepTimeMinutes description');
+
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -480,16 +796,23 @@ const getSupplierMenuItems = async (req, res) => {
 
 const createSupplierMenuItem = async (req, res) => {
   try {
-    const { supplierName, supplierEmail, itemName, category, price, prepTimeMinutes, description, isAvailable } = req.body;
-    if (!supplierName || !supplierEmail || !itemName || price === undefined) {
-      return res.status(400).json({ message: 'supplierName, supplierEmail, itemName and price are required.' });
+    const { supplierEmail, itemName, category, price, prepTimeMinutes, description, isAvailable } = req.body;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!supplier || !itemName || price === undefined) {
+      return res.status(400).json({ message: 'supplierEmail, itemName and price are required.' });
+    }
+    const numericPrice = Number(price);
+    if (!Number.isFinite(numericPrice) || numericPrice < MIN_STRIPE_LKR_AMOUNT) {
+      return res.status(400).json({
+        message: `Price must be at least Rs. ${MIN_STRIPE_LKR_AMOUNT} due to Stripe minimum charge limits.`,
+      });
     }
     const item = await MealMenuItem.create({
-      supplierName,
-      supplierEmail,
+      supplierName: supplier.name,
+      supplierEmail: supplier.email,
       itemName,
       category: category || 'Main',
-      price,
+      price: numericPrice,
       prepTimeMinutes: prepTimeMinutes || 30,
       description: description || '',
       isAvailable: isAvailable !== undefined ? isAvailable : true,
@@ -502,8 +825,36 @@ const createSupplierMenuItem = async (req, res) => {
 
 const updateSupplierMenuItem = async (req, res) => {
   try {
-    const item = await MealMenuItem.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    const { supplierEmail, ...updates } = req.body;
+    const item = await MealMenuItem.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Menu item not found.' });
+
+    if (supplierEmail) {
+      const supplier = await resolveSupplierByEmail(supplierEmail);
+      if (!supplier) {
+        return res.status(400).json({ message: 'Valid supplierEmail is required.' });
+      }
+      if (item.supplierEmail !== supplier.email) {
+        return res.status(403).json({ message: 'You can only edit your own menu items.' });
+      }
+    }
+
+    if (updates.itemName !== undefined) item.itemName = updates.itemName;
+    if (updates.category !== undefined) item.category = updates.category;
+    if (updates.price !== undefined) {
+      const numericPrice = Number(updates.price);
+      if (!Number.isFinite(numericPrice) || numericPrice < MIN_STRIPE_LKR_AMOUNT) {
+        return res.status(400).json({
+          message: `Price must be at least Rs. ${MIN_STRIPE_LKR_AMOUNT} due to Stripe minimum charge limits.`,
+        });
+      }
+      item.price = numericPrice;
+    }
+    if (updates.prepTimeMinutes !== undefined) item.prepTimeMinutes = updates.prepTimeMinutes;
+    if (updates.description !== undefined) item.description = updates.description;
+    if (updates.isAvailable !== undefined) item.isAvailable = updates.isAvailable;
+    await item.save();
+
     res.json(item);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -512,9 +863,183 @@ const updateSupplierMenuItem = async (req, res) => {
 
 const deleteSupplierMenuItem = async (req, res) => {
   try {
-    const item = await MealMenuItem.findByIdAndDelete(req.params.id);
+    const { supplierEmail } = req.query;
+    const item = await MealMenuItem.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Menu item not found.' });
+
+    if (supplierEmail) {
+      const supplier = await resolveSupplierByEmail(supplierEmail);
+      if (!supplier) {
+        return res.status(400).json({ message: 'Valid supplierEmail is required.' });
+      }
+      if (item.supplierEmail !== supplier.email) {
+        return res.status(403).json({ message: 'You can only delete your own menu items.' });
+      }
+    }
+
+    await MealMenuItem.findByIdAndDelete(req.params.id);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAdminMealSuppliers = async (req, res) => {
+  try {
+    const list = await MealSupplier.find({}).sort({ name: 1 }).select('-password');
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createAdminMealSupplier = async (req, res) => {
+  try {
+    const { name, email, phone, password, status, logoUrl, shopTagline } = req.body;
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({ message: 'name, email, phone and password are required.' });
+    }
+    if (await MealSupplier.findOne({ email })) {
+      return res.status(400).json({ message: 'A meal supplier with this email already exists.' });
+    }
+    const user = await MealSupplier.create({
+      name,
+      email,
+      phone,
+      password,
+      status: status || 'Inactive',
+      logoUrl: logoUrl || '',
+      shopTagline: shopTagline || '',
+    });
+    res.status(201).json(await MealSupplier.findById(user._id).select('-password'));
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'A meal supplier with this email already exists.' });
+    }
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateAdminMealSupplier = async (req, res) => {
+  try {
+    const supplier = await MealSupplier.findById(req.params.id);
+    if (!supplier) return res.status(404).json({ message: 'Meal supplier not found.' });
+
+    const oldName = supplier.name;
+    const oldEmail = supplier.email;
+    const { name, email, phone, password, status, logoUrl, shopTagline } = req.body;
+
+    if (email !== undefined && email !== oldEmail) {
+      const taken = await MealSupplier.findOne({ email, _id: { $ne: supplier._id } });
+      if (taken) return res.status(400).json({ message: 'Email already in use.' });
+      supplier.email = email;
+    }
+    if (name !== undefined) supplier.name = name;
+    if (phone !== undefined) supplier.phone = phone;
+    if (status !== undefined) supplier.status = status;
+    if (logoUrl !== undefined) supplier.logoUrl = logoUrl;
+    if (shopTagline !== undefined) supplier.shopTagline = shopTagline;
+    if (password && String(password).trim()) {
+      supplier.password = password;
+    }
+
+    await supplier.save();
+
+    const newName = supplier.name;
+    const newEmail = supplier.email;
+    if (newName !== oldName) {
+      await MealMenuItem.updateMany({ supplierName: oldName }, { $set: { supplierName: newName } });
+      await MealBooking.updateMany({ type: 'External', externalShopName: oldName }, { $set: { externalShopName: newName } });
+    }
+    if (newEmail !== oldEmail) {
+      await MealMenuItem.updateMany({ supplierEmail: oldEmail }, { $set: { supplierEmail: newEmail } });
+    }
+
+    res.json(await MealSupplier.findById(supplier._id).select('-password'));
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Email already in use.' });
+    }
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteAdminMealSupplier = async (req, res) => {
+  try {
+    const supplier = await MealSupplier.findById(req.params.id);
+    if (!supplier) return res.status(404).json({ message: 'Meal supplier not found.' });
+
+    const extCount = await MealBooking.countDocuments({
+      type: 'External',
+      externalShopName: supplier.name,
+    });
+    if (extCount > 0) {
+      return res.status(400).json({
+        message: `Cannot delete: ${extCount} external order(s) reference this shop. Suspend the account instead.`,
+      });
+    }
+
+    await MealMenuItem.deleteMany({ supplierEmail: supplier.email });
+    await MealSupplier.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAdminAllMenuItems = async (req, res) => {
+  try {
+    const { supplierEmail, activeSuppliersOnly } = req.query;
+
+    if (supplierEmail) {
+      const owner = await MealSupplier.findOne({ email: supplierEmail });
+      if (owner && owner.status !== 'Active') {
+        return res.json([]);
+      }
+      const items = await MealMenuItem.find({ supplierEmail }).sort({ createdAt: -1 });
+      return res.json(items);
+    }
+
+    if (activeSuppliersOnly === 'true') {
+      const active = await MealSupplier.find({ status: 'Active' }).select('email');
+      const emails = active.map((s) => s.email);
+      const items = await MealMenuItem.find({ supplierEmail: { $in: emails } }).sort({ createdAt: -1 });
+      return res.json(items);
+    }
+
+    const items = await MealMenuItem.find({}).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAdminMealHubStats = async (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const [activeSlots, activePartners, todayKitchenBookings, pendingExternalOrders] = await Promise.all([
+      MealSlot.countDocuments({ isActive: true }),
+      MealSupplier.countDocuments({ status: 'Active' }),
+      MealBooking.countDocuments({
+        bookingDate: today,
+        type: 'Kitchen',
+        status: { $ne: 'Cancelled' },
+      }),
+      MealBooking.countDocuments({
+        type: 'External',
+        status: { $ne: 'Cancelled' },
+        deliveryStatus: { $in: ['Pending', 'Preparing', 'Out for Delivery'] },
+      }),
+    ]);
+
+    res.json({
+      date: today,
+      activeSlots,
+      activePartners,
+      todayKitchenBookings,
+      pendingExternalOrders,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -522,15 +1047,35 @@ const deleteSupplierMenuItem = async (req, res) => {
 
 const updateSupplierDeliveryStatus = async (req, res) => {
   try {
-    const { deliveryStatus, supplierName } = req.body;
-    if (!deliveryStatus || !supplierName) {
-      return res.status(400).json({ message: 'deliveryStatus and supplierName are required.' });
+    const { deliveryStatus, supplierEmail } = req.body;
+    const supplier = await resolveSupplierByEmail(supplierEmail);
+    if (!deliveryStatus || !supplier) {
+      return res.status(400).json({ message: 'deliveryStatus and a valid supplierEmail are required.' });
     }
 
     const order = await MealBooking.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Meal order not found.' });
-    if (order.externalShopName !== supplierName) {
+    if (order.externalShopName !== supplier.name) {
       return res.status(403).json({ message: 'You can only update your own shop orders.' });
+    }
+
+    // Before payment, supplier can only accept or cancel while in AwaitingAcceptance.
+    const isAccepting = order.deliveryStatus === 'AwaitingAcceptance' && deliveryStatus === 'Pending';
+    const isCancellingBeforePayment = order.deliveryStatus === 'AwaitingAcceptance' && deliveryStatus === 'Cancelled';
+    const isPaidOrder = order.paymentStatus === 'Paid';
+
+    if (!isPaidOrder && !isAccepting && !isCancellingBeforePayment) {
+      return res.status(400).json({
+        message: 'Before payment, you can only accept or cancel an order that is awaiting acceptance.',
+      });
+    }
+
+    if (isPaidOrder && deliveryStatus === 'Cancelled') {
+      return res.status(400).json({ message: 'Paid orders cannot be cancelled by supplier.' });
+    }
+
+    if (order.status === 'Cancelled') {
+      return res.status(400).json({ message: 'Cancelled orders cannot be updated.' });
     }
 
     order.deliveryStatus = deliveryStatus;
@@ -548,7 +1093,11 @@ module.exports = {
   getKitchenSlots,
   createKitchenBooking,
   createExternalOrder,
+  createExternalCartOrder,
   getStudentMealBookings,
+  getMealOrderByReference,
+  deleteStudentCompletedExternalOrder,
+  deleteStudentCompletedExternalOrdersBulk,
   cancelMealBooking,
   rescheduleMealBooking,
   getAdminSlots,
@@ -562,8 +1111,15 @@ module.exports = {
   getSupplierOrders,
   getSupplierSummary,
   getSupplierMenuItems,
+  getPublicShopMenuItems,
   createSupplierMenuItem,
   updateSupplierMenuItem,
   deleteSupplierMenuItem,
   updateSupplierDeliveryStatus,
+  getAdminMealSuppliers,
+  createAdminMealSupplier,
+  updateAdminMealSupplier,
+  deleteAdminMealSupplier,
+  getAdminAllMenuItems,
+  getAdminMealHubStats,
 };

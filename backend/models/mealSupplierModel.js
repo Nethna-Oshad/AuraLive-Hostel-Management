@@ -8,10 +8,13 @@ const mealSupplierSchema = mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, default: 'MealSupplier' },
   status: { type: String, default: 'Inactive' }, // Added Status
+  logoUrl: { type: String, default: '' },
+  shopTagline: { type: String, default: '' },
 }, { timestamps: true });
 
-mealSupplierSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) next();
+// Use async without `next` — mixing async/await with next() breaks Mongoose save hooks.
+mealSupplierSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });

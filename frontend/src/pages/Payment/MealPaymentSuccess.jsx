@@ -9,6 +9,7 @@ const MealPaymentSuccess = () => {
   const navigate = useNavigate();
   const [verifying, setVerifying] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [orderReference, setOrderReference] = useState('');
 
   useEffect(() => {
     const verify = async () => {
@@ -18,7 +19,8 @@ const MealPaymentSuccess = () => {
           setVerifying(false);
           return;
         }
-        await axios.post('http://localhost:5000/api/payment/verify-meal', { mealBookingId });
+        const response = await axios.post('http://localhost:5000/api/payment/verify-meal', { mealBookingId });
+        setOrderReference(response?.data?.orderReference || '');
         setVerifying(false);
       } catch (error) {
         setHasError(true);
@@ -62,6 +64,11 @@ const MealPaymentSuccess = () => {
             <p className="text-gray-500 mb-10 leading-relaxed">
               Your external meal order payment has been confirmed. Your order will now be processed by the selected shop.
             </p>
+            {orderReference && (
+              <p className="mb-8 text-sm font-bold text-[#1f5a80]">
+                Reference No: {orderReference}
+              </p>
+            )}
             <button 
               onClick={() => navigate('/student/meals/third-party')} 
               className="w-full bg-gradient-to-r from-[#2872A1] to-[#1f5a80] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:shadow-xl transition-all shadow-md"
