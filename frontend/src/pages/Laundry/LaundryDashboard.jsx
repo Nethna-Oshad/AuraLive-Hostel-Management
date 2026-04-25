@@ -5,7 +5,7 @@ import {
   Package, Weight, TrendingUp, Star, MessageSquare, 
   User, PieChart, BarChart3, AlertCircle, Zap
 } from 'lucide-react';
-import { motion } from 'framer-motion'; // ✅ Import motion properly
+import { motion } from 'framer-motion'; 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -13,7 +13,7 @@ const LaundryDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Storage eken login wela inna partner ge details gannawa
+ 
   const userInfo = JSON.parse(localStorage.getItem('userInfo')) || {};
 
   useEffect(() => {
@@ -41,8 +41,7 @@ const LaundryDashboard = () => {
 
   const safeOrders = Array.isArray(orders) ? orders : [];
   
-  // ✅ LOGIC FIX: Check if there are any Premium orders
-  // String conversion and boolean check handled
+  
   const premiumOrders = safeOrders.filter(o => 
     (o.isPremiumOrder === true || String(o.isPremiumOrder) === 'true') && 
     (o.status === 'Pending' || o.status === 'Accepted')
@@ -102,7 +101,7 @@ const LaundryDashboard = () => {
             </div>
           </div>
 
-          {/* 🚨 PREMIUM URGENT NOTIFICATION BAR (Visible when Premium orders exist) 🚨 */}
+          
           {premiumOrders.length > 0 && (
             <motion.div 
               initial={{ opacity: 0, y: -20 }}
