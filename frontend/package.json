@@ -17,6 +17,7 @@
     "@tailwindcss/postcss": "^4.1.18",
     "axios": "^1.13.5",
     "framer-motion": "^12.34.3",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.567.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
