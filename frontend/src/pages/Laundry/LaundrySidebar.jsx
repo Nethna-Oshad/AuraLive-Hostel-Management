@@ -10,7 +10,7 @@ const LaundrySidebar = () => {
     location.pathname === path 
       ? "bg-[#2872A1] text-white font-bold shadow-md shadow-[#2872A1]/30" 
       : "text-gray-500 hover:bg-[#CBDDE9]/30 hover:text-[#2872A1]";
-
+// Handle logout by clearing user info and navigating to login page
   const handleLogout = () => {
     localStorage.removeItem('userInfo');
     navigate('/login');
@@ -49,7 +49,7 @@ const LaundrySidebar = () => {
           <span className="text-sm font-semibold uppercase tracking-wide">History</span>
         </Link>
 
-        {/* 👇 ADDED: PRICING SETTINGS BUTTON 👇 */}
+        
         <Link 
           to="/laundry/settings" 
           className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive('/laundry/settings')}`}
