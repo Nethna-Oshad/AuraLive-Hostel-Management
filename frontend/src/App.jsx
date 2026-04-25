@@ -60,6 +60,7 @@ import TermsOfService from './Company/TermsOfService';
 import HelpCenter from './Company/HelpCenter'; 
 import Services from './Company/Services';
 
+import MaintainerProfile from './pages/Maintainers/MaintainerProfile';
 
 const StudentLayout = ({ children }) => {
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
@@ -109,6 +110,7 @@ function App() {
         <Route path="/laundry/orders" element={<ManageOrders />} />
         <Route path="/laundry/history" element={<OrderHistory />} /> 
         <Route path="/laundry/settings" element={<LaundrySettings />} /> 
+        <Route path="/maintainer/profile" element={<MaintainerProfile />} />
         <Route path="/maintainer/dashboard" element={<MaintainersDashboard />} />
         <Route path="/maintainer/tasks" element={<MaintainerTasks />} /> 
         <Route path="/maintainer/completed" element={<MaintainerHistory />} /> 
